@@ -20,7 +20,9 @@ It is made for:
 
 - **The game is never modified or run by its own executable.** renpy-capture downloads the official SDK of the
   game's Ren'Py version from renpy.org (checked against the official sha256), makes a *launch folder* whose `game/`
-  is made of links to the game's files, and adds one script, `capture.rpy`.
+  is made of links to the game's files, and adds one script, `capture.rpy`. Mods that players drop into `game/` and
+  that draw over the game (Translator3000, the Universal Ren'Py Mod) are left out; `setup --exclude REGEX` leaves out
+  anything else.
 - Inside the engine, that script captures a frame once the scene has **settled**: one-shot animations have finished,
   transitions are over, and nothing asks for a redraw any more (endless animations are captured at a fixed phase). The
   dialogue window and the game's interface screens are not drawn, so the picture is the scene itself.

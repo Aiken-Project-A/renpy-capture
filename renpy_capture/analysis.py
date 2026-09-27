@@ -73,11 +73,12 @@ def forget(out, ids):
         print(f'{name}: {gone} records removed')
 
 
-def compare(a, b):
+def compare(a, b, frames=True):
     """Two runs of the same jobs (a reference and a candidate): the same order of captures, the same scene state on
     every line (image attributes as a set: Ren'Py returns them from a set) and the same frame. Frames are compared by
-    the sha1 of the PNG, which only makes sense when both runs used the same GL. A capture in the middle of an endless
-    animation (anim) may differ in phase and is counted apart; only a frame of a scene at rest counts as a mismatch."""
+    the sha1 of the PNG, which only makes sense when both runs used the same GL; ``frames=False`` compares scene
+    states only (runs on different GPUs or drivers). A capture in the middle of an endless animation (anim) may
+    differ in phase and is counted apart; only a frame of a scene at rest counts as a mismatch."""
     def norm(shown):
         return sorted(' '.join([s.split()[0]] + sorted(s.split()[1:])) for s in (shown or []) if s)
 
@@ -109,7 +110,7 @@ def compare(a, b):
                 bad += 1
                 print(f'{j} #{p.get("seq")}: scene state\n   {state(p)}\n   {state(q)}')
                 break
-            if p.get('frame') == q.get('frame'):
+            if not frames or p.get('frame') == q.get('frame'):
                 same += 1
             elif p.get('anim') or q.get('anim') or p.get('peak') or q.get('peak'):
                 anim += 1
@@ -118,8 +119,9 @@ def compare(a, b):
                 print(f'{j} #{p.get("seq")} {p.get("kind")} {p.get("file")}:{p.get("line")}: '
                       'a different frame of a scene at rest')
     only = sorted(set(sa) ^ set(sb))
-    print(f'jobs {len(common)}, captures {total}: same frame {same}, another animation phase {anim}, '
-          f'mismatches {bad}' + (f'; only in one run: {", ".join(only)}' if only else ''))
+    print(f'jobs {len(common)}, captures {total}: ' + (f'same frame {same}, another animation phase {anim}, '
+                                                          if frames else f'same scene state {same}, ')
+          + f'mismatches {bad}' + (f'; only in one run: {", ".join(only)}' if only else ''))
     print(f'job time: {sum(ta[j] for j in common):.0f} s / {sum(tb[j] for j in common):.0f} s')
     return bad == 0 and not only
 

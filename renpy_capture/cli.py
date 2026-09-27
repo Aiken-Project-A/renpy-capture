@@ -75,6 +75,8 @@ def main(argv=None):
     p = sub.add_parser('compare', help='check that two runs of the same jobs match (exit code 1 if not)')
     p.add_argument('reference')
     p.add_argument('out')
+    p.add_argument('--states-only', action='store_true',
+                   help='compare what is on screen at every line, not the pixels (runs on different GPUs)')
 
     p = sub.add_parser('forget', help='drop jobs from a capture before capturing them again')
     p.add_argument('out')
@@ -128,7 +130,7 @@ def dispatch(a):
         gaps(a.game, a.config, a.out)
     elif a.cmd == 'compare':
         from .analysis import compare
-        sys.exit(0 if compare(a.reference, a.out) else 1)
+        sys.exit(0 if compare(a.reference, a.out, frames=not a.states_only) else 1)
     elif a.cmd == 'forget':
         from .analysis import forget
         forget(a.out, a.jobs)

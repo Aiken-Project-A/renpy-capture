@@ -7,6 +7,9 @@ import sys
 from . import rpa
 
 SKIP_DIRS = ('cache/', 'saves/', 'tl/', '__pycache__/')
+# Mods that players drop into game/ and that draw over the game: machine translation on the fly (Translator3000),
+# the Universal Ren'Py Mod. They are not the game: a launch folder leaves them out, and so does reading the game.
+MODS = re.compile(r'translator3000|0x52_urm', re.I)
 
 
 def _has_scripts(d):
@@ -80,10 +83,12 @@ class Game:
             for f in sorted(fs):
                 p = os.path.join(d, f)
                 rel = os.path.relpath(p, self.base).replace(os.sep, '/')
-                if f.lower().endswith(('.rpa', '.rpi', '.rpyb')) or rel.lower().startswith(SKIP_DIRS):
+                if f.lower().endswith(('.rpa', '.rpi', '.rpyb')) or rel.lower().startswith(SKIP_DIRS) \
+                        or MODS.search(rel):
                     continue
                 add(rel, (lambda p=p: open(p, 'rb').read()), 'disk')
-        self.archives = sorted(f for f in os.listdir(self.base) if f.lower().endswith('.rpa'))[::-1]
+        self.archives = sorted(f for f in os.listdir(self.base)
+                               if f.lower().endswith('.rpa') and not MODS.search(f))[::-1]
         for f in self.archives:
             arc = rpa.Archive(os.path.join(self.base, f))
             for n in sorted(arc.index):

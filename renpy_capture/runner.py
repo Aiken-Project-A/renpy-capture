@@ -13,7 +13,7 @@ import time
 
 from . import sdk as sdkmod
 from .analysis import report
-from .game import engine_version, game_dir
+from .game import MODS, engine_version, game_dir
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CAPTURE_RPY = os.path.join(HERE, 'capture.rpy')
@@ -35,41 +35,55 @@ def _info(rundir):
 
 
 def setup(game, rundir, version=None, sdk_dir=None, exclude=None):
-    """The launch folder: game/ made of links to the game's files (without its saves and cache) plus capture.rpy,
-    its own saves, cache and HOME. The game itself is never changed."""
+    """The launch folder: game/ made of links to the game's files plus capture.rpy, its own saves, cache and HOME.
+    The game itself is never changed."""
     g = game_dir(game)
     root = os.path.dirname(g)
     rundir = os.path.abspath(rundir)
     if os.path.exists(rundir) and (os.path.samefile(rundir, root) or os.path.samefile(rundir, g)):
         raise SystemExit('the launch folder must not be the game folder')
-    rg = os.path.join(rundir, 'game')
-    if os.path.lexists(rg):
-        if not os.path.exists(os.path.join(rundir, RUN_INFO)):
-            raise SystemExit(f'{rundir} already has a game/ folder that renpy-capture did not make; '
-                             'choose an empty launch folder')
-        shutil.rmtree(rg)
+    if os.path.lexists(os.path.join(rundir, 'game')) and not os.path.exists(os.path.join(rundir, RUN_INFO)):
+        raise SystemExit(f'{rundir} already has a game/ folder that renpy-capture did not make; '
+                         'choose an empty launch folder')
     version = version or engine_version(game)
     if not version and not sdk_dir:
         raise SystemExit("cannot tell the game's Ren'Py version: pass --renpy-version (or --sdk)")
-    rx = re.compile(exclude) if exclude else None
-    os.makedirs(rg)
-    for f in sorted(os.listdir(g)):
-        if f in ('saves', 'cache') or f.lower().endswith('.exe') or (rx and rx.search(f)):
-            continue
-        os.symlink(os.path.join(g, f), os.path.join(rg, f))
-    for sub in ('saves', 'cache'):
-        os.makedirs(os.path.join(rg, sub))
     os.makedirs(os.path.join(rundir, 'home'), exist_ok=True)
     stub = os.path.join(rundir, 'bin')              # a crashing engine opens traceback.txt with xdg-open: no editor
     os.makedirs(stub, exist_ok=True)                # windows pop up on the user's desktop
     with open(os.path.join(stub, 'xdg-open'), 'w') as f:
         f.write('#!/bin/sh\nexit 0\n')
     os.chmod(os.path.join(stub, 'xdg-open'), 0o755)
-    shutil.copy(CAPTURE_RPY, os.path.join(rg, RPY_NAME))
+    info = {'game': os.path.abspath(game), 'version': version, 'sdk': sdk_dir and os.path.abspath(sdk_dir),
+            'exclude': exclude}
     with open(os.path.join(rundir, RUN_INFO), 'w', encoding='utf-8') as f:
-        json.dump({'game': os.path.abspath(game), 'version': version, 'sdk': sdk_dir and os.path.abspath(sdk_dir),
-                   'exclude': exclude}, f, ensure_ascii=False, indent=1)
+        json.dump(info, f, ensure_ascii=False, indent=1)
+    link_game(info, rundir)
     print(f"launch folder: {rundir} (Ren'Py {version or 'from ' + sdk_dir})")
+
+
+def link_game(info, rundir):
+    """(Re)make game/ of a launch folder: a link to every file and folder of the game's game/ (not its saves and
+    cache, not overlay mods, not ``exclude``) and capture.rpy. The engine's own saves/ and cache/ (compiled bytecode)
+    are kept. Called on every run, so the folder follows an updated game."""
+    g = game_dir(info['game'])
+    rg = os.path.join(rundir, 'game')
+    rx = re.compile(info['exclude']) if info.get('exclude') else None
+    os.makedirs(rg, exist_ok=True)
+    for f in os.listdir(rg):
+        p = os.path.join(rg, f)
+        if f in ('saves', 'cache'):
+            continue
+        if not (os.path.islink(p) or f.startswith(RPY_NAME[:-3])):     # capture.rpy and its .rpyc
+            raise SystemExit(f'{p} is not a link made by renpy-capture; the launch folder was changed by hand')
+        os.remove(p)
+    for f in sorted(os.listdir(g)):
+        if f in ('saves', 'cache') or f.lower().endswith('.exe') or MODS.search(f) or (rx and rx.search(f)):
+            continue
+        os.symlink(os.path.join(g, f), os.path.join(rg, f))
+    for sub in ('saves', 'cache'):
+        os.makedirs(os.path.join(rg, sub), exist_ok=True)
+    shutil.copy(CAPTURE_RPY, os.path.join(rg, RPY_NAME))
 
 
 def init_config(game, path):
@@ -259,7 +273,7 @@ def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, 
     ``stall`` seconds (a hung job is recorded and skipped); an interrupted run continues from the first job that
     is not done."""
     info = _info(rundir)
-    shutil.copy(CAPTURE_RPY, os.path.join(rundir, 'game', RPY_NAME))
+    link_game(info, rundir)
     cfg = json.load(open(cfg_path, encoding='utf-8'))
     sdk_dir = info.get('sdk') or sdkmod.ensure(info['version'])
     os.makedirs(out, exist_ok=True)
@@ -411,9 +425,8 @@ def prun(rundir, cfg_path, out, workers=4, timewarp=4.0, batch=8, display=None, 
 
     def worker(k):
         rd = f'{os.path.abspath(rundir).rstrip(os.sep)}-w{k}'
-        with lock:
-            if not os.path.exists(os.path.join(rd, RUN_INFO)):
-                setup(info['game'], rd, info.get('version'), info.get('sdk'), info.get('exclude'))
+        with lock:                                  # workers follow the main folder (game, version, exclude)
+            setup(info['game'], rd, info.get('version'), info.get('sdk'), info.get('exclude'))
         time.sleep(4 * k)                           # launches spread out: a dozen displays and GL contexts at once
         launch = 0                                  # leave some engine without a window ("Invalid window")
         while True:
