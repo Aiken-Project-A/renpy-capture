@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "renpy-capture"
+version = "0.1.0"
+description = "Screenshots of every line of a Ren'Py game, taken by the game's own engine"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Aiken" }]
+requires-python = ">=3.9"
+dependencies = ["Pillow>=9"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Games/Entertainment",
+    "Topic :: Software Development :: Localization",
+]
+
+[project.scripts]
+renpy-capture = "renpy_capture.cli:main"
+
+[tool.setuptools]
+packages = ["renpy_capture"]
+
+[tool.setuptools.package-data]
+renpy_capture = ["capture.rpy"]
