@@ -42,16 +42,26 @@ transform _rc_still:
 
 init python:
     import os as _rc_os, io as _rc_io, re as _rc_re, json as _rc_json, time as _rc_time
-    import types as _rc_types, hashlib as _rc_hashlib, traceback as _rc_tb
+    import hashlib as _rc_hashlib, traceback as _rc_tb
 
-    _rc_P = _rc_types.SimpleNamespace(active=False, cfg=None, out=None, log=None, job=None, seq=0, menu_i=0,
-                                      label=None, pause_delay=None, lines={}, seen=set(), ui=None, skip=[], drop=None,
-                                      stop=None, settle=1.0, settle_max=1.0, max_steps=3000, loop_limit=40, t0=0.0,
-                                      where={}, last_key=None, last_frame=None, scene=None, prefer=None, menus_seen={},
-                                      cur_node=None, node_t0=0.0, stubs=set(), timers=None, wait=None, wait_node=None,
-                                      wait_t0=0.0, nulls=set(), stop_labels=None, trans=False, fx_screens=None,
-                                      fx_files=None, hidden_text={}, dt=0.0, vclock=0.0, cap_anim=False,
-                                      cap_peak=False, vis_prev=None, hidden_ids=set(), persist0=None)
+    class _RcState(python_object):
+        """The capture's state: a plain object (python_object), outside rollback and saves; works on the Python 2
+        of Ren'Py 7 as well, which has no types.SimpleNamespace."""
+
+        def __init__(self, **kw):
+            self.__dict__.update(kw)
+
+    def _rc_makedirs(path):
+        if not _rc_os.path.isdir(path):
+            _rc_os.makedirs(path)
+
+    _rc_P = _RcState(active=False, cfg=None, out=None, log=None, job=None, seq=0, menu_i=0, label=None,
+                     pause_delay=None, lines={}, seen=set(), ui=None, skip=[], drop=None, stop=None, settle=1.0,
+                     settle_max=1.0, max_steps=3000, loop_limit=40, t0=0.0, where={}, last_key=None,
+                     last_frame=None, scene=None, prefer=None, menus_seen={}, cur_node=None, node_t0=0.0,
+                     stubs=set(), timers=None, wait=None, wait_node=None, wait_t0=0.0, nulls=set(),
+                     stop_labels=None, trans=False, fx_screens=None, fx_files=None, hidden_text={}, dt=0.0,
+                     vclock=0.0, cap_anim=False, cap_peak=False, vis_prev=None, hidden_ids=set(), persist0=None)
 
     def _rc_rx(v):
         return _rc_re.compile(v) if v else None
@@ -199,7 +209,7 @@ init python:
             rec["what"] = node.what
             try:                                   # the speaker's name as the player sees it ("Sylvie", not "s")
                 ch = renpy.ast.eval_who(node.who, getattr(node, "who_fast", None))
-                n = ch if isinstance(ch, str) else getattr(ch, "name", None)
+                n = ch if isinstance(ch, str) else getattr(ch, "name", None)    # (str is unicode in Ren'Py 7)
                 if n is not None:
                     rec["name"] = renpy.substitute(n) if isinstance(n, str) else str(n)
             except Exception:
@@ -627,7 +637,7 @@ init python:
     def _rc_run_all():
         P = _rc_P
         cfg = P.cfg
-        _rc_os.makedirs(_rc_os.path.join(P.out, "frames"), exist_ok=True)
+        _rc_makedirs(_rc_os.path.join(P.out, "frames"))
         for f in _rc_os.listdir(_rc_os.path.join(P.out, "frames")):
             P.seen.add(f[:-4])
         P.log = open(_rc_os.path.join(P.out, "log.jsonl"), "a", encoding="utf-8")
@@ -683,6 +693,8 @@ init python:
                 why = "end"
             except renpy.game.QuitException:
                 raise                                  # no GL (first-frame check): no "end", the job is retried
+            except renpy.game.FullRestartException:
+                why = "restart"                        # the game went back to its main menu: the story is over
             except Exception as e:
                 tb = _rc_tb.format_exc()
                 if "Invalid window" in tb:             # the window was not created (video memory): the same

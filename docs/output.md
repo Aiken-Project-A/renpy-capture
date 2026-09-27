@@ -49,4 +49,5 @@ Every record has `ev` (the kind) and `job`.
 **`error`** — a script error: `error` (the traceback), `seq`, `label`; `ignored: true` when `ignore_errors` stepped
 over it.
 
-**`end`** — a job finished: `steps`, `why` (`end`, `exception: …` or `stall`), `seconds` (wall-clock time).
+**`end`** — a job finished: `steps`, `why` (`end`; `restart` when the game went back to its main menu;
+`exception: …`; `stall`), `seconds` (wall-clock time).

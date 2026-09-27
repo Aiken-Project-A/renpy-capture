@@ -49,7 +49,7 @@ It is made for:
   [unrpyc](https://github.com/CensoredUsername/unrpyc) — set `RENPY_CAPTURE_UNRPYC` to its folder. The capture itself
   does not need it.
 
-Tested with Ren'Py 8.2 and 8.3.
+Tested with Ren'Py 7.8, 8.2 and 8.3 (the sample game gives the same frames, byte for byte, on 7.8 and 8.3).
 
 ## Quick start
 
