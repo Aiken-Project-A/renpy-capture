@@ -212,16 +212,17 @@ def make_display(name, rundir, egl, size):
 
 
 def sweep(sdk_dir, rundir):
-    """Kill an engine of this launch folder that outlived its process group."""
-    mark = (os.path.join(sdk_dir, 'lib') + '/', os.path.abspath(rundir))
+    """Kill an engine of this launch folder that outlived its process group (its command line runs the SDK's
+    Python on exactly this folder; a worker folder <rundir>-w0 is another folder)."""
+    lib, rd = os.path.join(sdk_dir, 'lib') + os.sep, os.path.abspath(rundir)
     for pid in os.listdir('/proc'):
         if not pid.isdigit() or int(pid) == os.getpid():
             continue
         try:
-            cmd = open(f'/proc/{pid}/cmdline', 'rb').read().replace(b'\0', b' ').decode(errors='replace')
+            args = open(f'/proc/{pid}/cmdline', 'rb').read().decode(errors='replace').split('\0')
         except OSError:
             continue
-        if all(m in cmd for m in mark):
+        if any(a.startswith(lib) for a in args) and any(a.rstrip(os.sep) == rd for a in args):
             try:
                 os.kill(int(pid), signal.SIGKILL)
             except ProcessLookupError:

@@ -233,7 +233,7 @@ def gaps(game, cfg_path, out, show=True):
             if ln.strip() and not ln[0].isspace() and not ln.lstrip().startswith('#'):
                 cur = None                          # a top-level statement that is not a label (image, screen, init)
             s = GAP_SHOW.match(ln)
-            if not s or cur is None or (hubs and hubs.match(cur)):
+            if not s or cur is None or (hubs and hubs.search(cur)):
                 continue
             end, ind = i, len(ln) - len(ln.lstrip())
             for k in range(i + 1, min(len(lines), i + 400) + 1):

@@ -12,7 +12,7 @@ import zlib
 
 
 class _IndexUnpickler(pickle.Unpickler):
-    _ALLOWED = {('_codecs', 'encode'), ('builtins', 'bytes')}
+    _ALLOWED = {('_codecs', 'encode'), ('builtins', 'bytes'), ('__builtin__', 'bytes')}   # protocol 2 names it so
 
     def find_class(self, module, name):
         if (module, name) in self._ALLOWED:

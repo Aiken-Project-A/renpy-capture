@@ -1,6 +1,7 @@
 """Command line: renpy-capture <command> …"""
 import argparse
 import json
+import os
 import sys
 
 from . import __version__
@@ -27,9 +28,9 @@ def main(argv=None):
     p.add_argument('game')
     p.add_argument('config')
 
-    p = sub.add_parser('sdk', help="download the Ren'Py SDK the game needs (done by setup/run when missing)")
-    p.add_argument('game')
-    p.add_argument('--renpy-version', help="the Ren'Py version, when the game does not tell it")
+    p = sub.add_parser('sdk', help="download the Ren'Py SDK a game needs (done by setup/run when missing)")
+    p.add_argument('game', nargs='?', help='the game (its Ren\'Py version picks the SDK)')
+    p.add_argument('--renpy-version', help="the Ren'Py version, instead of a game or when the game does not tell it")
 
     p = sub.add_parser('setup', help='make a launch folder: links to the game plus the capture script')
     p.add_argument('game')
@@ -87,15 +88,24 @@ def main(argv=None):
     p.add_argument('--no-page', action='store_true', help='do not write index.html')
 
     a = ap.parse_args(argv)
+    try:
+        dispatch(a)
+    except (ImportError, ValueError) as e:        # a game we cannot read, a missing optional tool
+        if os.environ.get('RENPY_CAPTURE_DEBUG'):
+            raise
+        sys.exit(f'renpy-capture: {e}')
+
+
+def dispatch(a):
     if a.cmd == 'init':
         from .runner import init_config
         init_config(a.game, a.config)
     elif a.cmd == 'sdk':
         from . import sdk
         from .game import engine_version
-        v = a.renpy_version or engine_version(a.game)
+        v = a.renpy_version or (engine_version(a.game) if a.game else None)
         if not v:
-            sys.exit("cannot tell the game's Ren'Py version: pass --renpy-version")
+            sys.exit("give a game whose Ren'Py version can be told, or --renpy-version")
         print(sdk.ensure(v))
     elif a.cmd == 'setup':
         from .runner import setup
