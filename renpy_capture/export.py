@@ -2,12 +2,12 @@
 index.html), and optionally the game's event pictures (CG) cut out as separate images."""
 import collections
 import html
-import json
 import os
 import re
 import shutil
 
 from .game import Game
+from .util import read_jsonl, script_path
 
 SCENARIO_LABEL = re.compile(r'^\s*label\s+([A-Za-z_][\w.]*)')
 
@@ -22,8 +22,7 @@ class Labels:
     def __call__(self, fn, line, skip=None):
         if not fn or not line:
             return None
-        rel = re.sub(r'^game/', '', fn)
-        rel = rel[:-1] if rel.endswith('.rpyc') else rel
+        rel = script_path(fn)
         if rel not in self.cache:
             marks = []
             for i, ln in enumerate((self.scripts.get(rel) or '').split('\n'), 1):
@@ -44,9 +43,9 @@ def coverage(data, area):
     """The share of the frame (``area`` pixels) covered by opaque pixels of an image, 0..1."""
     import io
     from PIL import Image
-    im = Image.open(io.BytesIO(data))
-    a = im.getchannel('A') if 'A' in im.getbands() else None
-    n = sum(a.histogram()[17:]) if a is not None else im.size[0] * im.size[1]
+    with Image.open(io.BytesIO(data)) as im:
+        a = im.getchannel('A') if 'A' in im.getbands() else None
+        n = sum(a.histogram()[17:]) if a is not None else im.size[0] * im.size[1]
     return n / float(area)
 
 
@@ -171,7 +170,7 @@ def export(out, game, dest, opts=None, page=True):
     flash = re.compile(opts['flash']) if opts.get('flash') else None
     fx_skip = re.compile(opts['fx_skip']) if opts.get('fx_skip') else None
     fx = re.compile(opts['effects']) if opts.get('effects') else None
-    log = [json.loads(line) for line in open(os.path.join(out, 'log.jsonl'), encoding='utf-8')]
+    log = read_jsonl(os.path.join(out, 'log.jsonl'))
     frame_path = lambda h: os.path.join(out, 'frames', h + '.png')
     low = {k.lower(): k for k in g.files}
 
@@ -259,7 +258,7 @@ def export(out, game, dest, opts=None, page=True):
             continue
         if r['ev'] != 'shot':
             continue
-        fn = re.sub(r'^game/', '', r.get('file') or '')
+        fn = script_path(r.get('file'))
         lab = cur_label[r['job']] = story(r) or cur_label.get(r['job'])
         h = r.get('frame')
         name = ''

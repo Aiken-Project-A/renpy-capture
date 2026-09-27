@@ -31,7 +31,8 @@ def ensure(version):
             print(f'downloading {base}{name}')
             urllib.request.urlretrieve(base + name, tb + '.part')
             os.replace(tb + '.part', tb)
-        sums = urllib.request.urlopen(base + 'checksums.txt').read().decode()
+        with urllib.request.urlopen(base + 'checksums.txt') as r:
+            sums = r.read().decode()
     except OSError as e:
         raise SystemExit(f"cannot download the Ren'Py {version} SDK from {base}: {e}")
     want = next((line.split()[0] for line in sums.splitlines()

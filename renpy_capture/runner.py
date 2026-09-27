@@ -14,6 +14,7 @@ import time
 from . import sdk as sdkmod
 from .analysis import report
 from .game import MODS, engine_version, game_dir
+from .util import read_bytes, read_json, read_jsonl, read_text
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CAPTURE_RPY = os.path.join(HERE, 'capture.rpy')
@@ -31,7 +32,7 @@ def _info(rundir):
     p = os.path.join(rundir, RUN_INFO)
     if not os.path.exists(p):
         raise SystemExit(f'{rundir}: not a launch folder (run `renpy-capture setup` first)')
-    return json.load(open(p, encoding='utf-8'))
+    return read_json(p)
 
 
 def setup(game, rundir, version=None, sdk_dir=None, exclude=None):
@@ -233,7 +234,7 @@ def sweep(sdk_dir, rundir):
         if not pid.isdigit() or int(pid) == os.getpid():
             continue
         try:
-            args = open(f'/proc/{pid}/cmdline', 'rb').read().decode(errors='replace').split('\0')
+            args = read_bytes(f'/proc/{pid}/cmdline').decode(errors='replace').split('\0')
         except OSError:
             continue
         if any(a.startswith(lib) for a in args) and any(a.rstrip(os.sep) == rd for a in args):
@@ -248,8 +249,7 @@ def current_job(out):
     cur = '?'
     p = os.path.join(out, 'log.jsonl')
     if os.path.exists(p):
-        for line in open(p, encoding='utf-8'):
-            r = json.loads(line)
+        for r in read_jsonl(p):
             if r['ev'] == 'start':
                 cur = r['job']
             elif r['ev'] == 'end' and r['job'] == cur:
@@ -274,16 +274,19 @@ def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, 
     is not done."""
     info = _info(rundir)
     link_game(info, rundir)
-    cfg = json.load(open(cfg_path, encoding='utf-8'))
+    cfg = read_json(cfg_path)
     sdk_dir = info.get('sdk') or sdkmod.ensure(info['version'])
     os.makedirs(out, exist_ok=True)
     rlog = os.path.join(out, 'renpy.log')
     gpu = gpu or cfg.get('gpu') or 'auto'
+    display = display or cfg.get('display') or default_display()
+    if display == 'xvfb':                           # Xvfb has no GPU: Mesa renders in software
+        gpu = 'mesa'
     egl = EGL.get(gpu)
     if gpu != 'auto' and (egl is None or not os.path.exists(egl)):
         print(f'gpu {gpu!r}: no {egl or "known EGL vendor file"} here, leaving the GPU choice to the system')
         egl = None
-    disp = make_display(display or cfg.get('display'), rundir, egl, _parse_size(screen or cfg.get('screen')))
+    disp = make_display(display, rundir, egl, _parse_size(screen or cfg.get('screen')))
     env = {'HOME': os.path.join(rundir, 'home'), 'SDL_AUDIODRIVER': 'dummy', 'RENPY_TIMEWARP': str(timewarp),
            'RENPY_SKIP_MAIN_MENU': '1', 'RENPY_SKIP_SPLASHSCREEN': '1',
            'RENPY_GL_VSYNC': '0',      # Ren'Py only slows itself down with vsync; a 60 Hz screen does not matter here
@@ -361,16 +364,16 @@ def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, 
         with open(done, 'a', encoding='utf-8') as f:
             f.write(hung + '\n')
         print(f'job {hung} hung, going on with the next one')
-        finished = set(open(done, encoding='utf-8').read().split())
+        finished = set(read_text(done).split())
         if all(i in finished for i in ids):
             break
     tb = os.path.join(rundir, 'traceback.txt')
     if os.path.exists(tb):
         shutil.copy(tb, os.path.join(out, 'traceback.txt'))
-        print(open(tb, encoding='utf-8', errors='replace').read()[-3000:])
+        print(read_text(tb, errors='replace')[-3000:])
     fatal = os.path.join(out, 'fatal.txt')
     if os.path.exists(fatal):
-        print('engine: ' + open(fatal, encoding='utf-8', errors='replace').read()[-2000:])
+        print('engine: ' + read_text(fatal, errors='replace')[-2000:])
     print(f'engine exit code: {rc}')
     report(out)
 
@@ -413,10 +416,10 @@ def prun(rundir, cfg_path, out, workers=4, timewarp=4.0, batch=8, display=None, 
     tail of the queue is shared evenly) and runs it in one engine, so the display and the game do not start again
     for every job. A job without an end (the engine died, no window) or with broken GL goes back to the end of the
     queue for another launch; after three failures it is given up."""
-    cfg = json.load(open(cfg_path, encoding='utf-8'))
+    cfg = read_json(cfg_path)
     os.makedirs(os.path.join(out, 'frames'), exist_ok=True)
     dpath = os.path.join(out, 'done.txt')
-    done = set(open(dpath, encoding='utf-8').read().split()) if os.path.exists(dpath) else set()
+    done = set(read_text(dpath).split()) if os.path.exists(dpath) else set()
     queue = [j for j in cfg['jobs'] if j['id'] not in done]
     info = _info(rundir)
     lock = threading.Lock()
@@ -445,7 +448,7 @@ def prun(rundir, cfg_path, out, workers=4, timewarp=4.0, batch=8, display=None, 
                 json.dump(dict(cfg, jobs=jobs), f, ensure_ascii=False)
             run(rd, wcfg, wout, timewarp, display=display, gpu=gpu, screen=screen)
             lp = os.path.join(wout, 'log.jsonl')
-            recs = [json.loads(line) for line in open(lp, encoding='utf-8')] if os.path.exists(lp) else []
+            recs = read_jsonl(lp) if os.path.exists(lp) else []
             by = collections.defaultdict(list)
             for r in recs:
                 by[r.get('job')].append(r)
@@ -484,7 +487,7 @@ def explore(rundir, cfg_path, out, rounds=10, timewarp=4.0, limit=600, workers=1
     """Rounds until the branches run out: every option of every menu met (file:line) is taken at least once. A new
     job repeats the choices made before that menu in a finished job, takes an option not taken yet, and then the
     first options. New jobs are added to the config (id "<job>~<choices>")."""
-    cfg = json.load(open(cfg_path, encoding='utf-8'))
+    cfg = read_json(cfg_path)
     for rnd in range(rounds):
         if workers > 1:
             prun(rundir, cfg_path, out, workers, timewarp, batch, display, gpu, screen)
@@ -492,8 +495,7 @@ def explore(rundir, cfg_path, out, rounds=10, timewarp=4.0, limit=600, workers=1
             run(rundir, cfg_path, out, timewarp, display=display, gpu=gpu, screen=screen)
         seen, menus = set(), collections.defaultdict(list)
         looped = set()                              # stopped as a loop: a mini-game gauge moved by screen timers,
-        for line in open(os.path.join(out, 'log.jsonl'), encoding='utf-8'):   # retried with the timers running
-            r = json.loads(line)
+        for r in read_jsonl(os.path.join(out, 'log.jsonl')):           # retried with the timers running
             if r['ev'] == 'shot' and r.get('menu') and 'pick' in r['menu']:   # waiting on a menu is not a choice
                 m = r['menu']
                 menus[r['job']].append((r['file'], r['line'], len(m['options']), m['pick']))

@@ -1,6 +1,5 @@
 """Command line: renpy-capture <command> …"""
 import argparse
-import json
 import os
 import sys
 
@@ -136,7 +135,8 @@ def dispatch(a):
         forget(a.out, a.jobs)
     elif a.cmd == 'export':
         from .export import export
-        opts = json.load(open(a.options, encoding='utf-8')) if a.options else None
+        from .util import read_json
+        opts = read_json(a.options) if a.options else None
         export(a.out, a.game, a.dest, opts, page=not a.no_page)
 
 

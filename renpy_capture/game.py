@@ -5,6 +5,7 @@ import re
 import sys
 
 from . import rpa
+from .util import read_bytes, read_text
 
 SKIP_DIRS = ('cache/', 'saves/', 'tl/', '__pycache__/')
 # Mods that players drop into game/ and that draw over the game: machine translation on the fly (Translator3000),
@@ -47,13 +48,12 @@ def engine_version(game):
     root = os.path.dirname(game_dir(game))
     p = os.path.join(root, 'renpy', 'vc_version.py')
     if os.path.exists(p):
-        m = re.search(r"^version\s*=\s*'(\d+(?:\.\d+)+)", open(p, encoding='utf-8', errors='replace').read(), re.M)
+        m = re.search(r"^version\s*=\s*'(\d+(?:\.\d+)+)", read_text(p, errors='replace'), re.M)
         if m:
             return '.'.join(m.group(1).split('.')[:3])
     p = os.path.join(root, 'renpy', '__init__.py')           # Ren'Py 7 and older: version_tuple = (7, 4, 11, vc)
     if os.path.exists(p):
-        m = re.search(r'^version_tuple\s*=\s*\((\d+),\s*(\d+),\s*(\d+)', open(p, encoding='utf-8',
-                                                                               errors='replace').read(), re.M)
+        m = re.search(r'^version_tuple\s*=\s*\((\d+),\s*(\d+),\s*(\d+)', read_text(p, errors='replace'), re.M)
         if m:
             return '.'.join(m.groups())
     return None
@@ -86,7 +86,7 @@ class Game:
                 if f.lower().endswith(('.rpa', '.rpi', '.rpyb')) or rel.lower().startswith(SKIP_DIRS) \
                         or MODS.search(rel):
                     continue
-                add(rel, (lambda p=p: open(p, 'rb').read()), 'disk')
+                add(rel, (lambda p=p: read_bytes(p)), 'disk')
         self.archives = sorted(f for f in os.listdir(self.base)
                                if f.lower().endswith('.rpa') and not MODS.search(f))[::-1]
         for f in self.archives:

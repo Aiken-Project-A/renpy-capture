@@ -85,6 +85,20 @@ Most visual novels need nothing but the starter config. Games with more machiner
 (`stop_labels`), effects can be kept out of the frame (`null_images`, `still_transforms`, `hide_tags`), and branches
 chosen by flags set much earlier can be captured with exact jobs (`gaps` tells which ones).
 
+## When something is off
+
+- **The capture is very slow.** `report` warns about it. If nearly every capture was taken "while something was
+  still moving", an overlay never stops animating: a mod or a HUD screen; list its screens in `ui`, its files in
+  `drop`, or leave it out with `setup --exclude`. If every interaction takes seconds, the GPU driver may be in a bad
+  state (it happens after a laptop's discrete GPU wakes from sleep): `--gpu mesa` or `--display xvfb` still work, a
+  reboot brings the GPU back.
+- **Two runs differ.** `compare` shows the first line where the scene differs. Runs on different GPUs or drivers
+  differ in pixels only: `compare --states-only`.
+- **A job stops early.** `report` tells why: a script error (`ignore_errors` steps over an author's typo), a hub label
+  (`stop_labels`), a loop (`loop_limit`), or the watchdog (`--stall`).
+- **Something is on screen that should not be, or missing.** `export`'s `index.html` shows every frame; the log record
+  of a line lists the images, screens and files that make it (`shown`, `screens`, `files`).
+
 ## Limits
 
 - Linux only for now.

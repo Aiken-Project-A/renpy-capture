@@ -5,13 +5,14 @@ import os
 import re
 
 from .game import Game
+from .util import read_json, read_jsonl, script_path
 
 
 def _records(out):
     p = os.path.join(out, 'log.jsonl')
     if not os.path.exists(p):
         return None
-    return [json.loads(line) for line in open(p, encoding='utf-8')]
+    return read_jsonl(p)
 
 
 def report(out):
@@ -50,6 +51,16 @@ def report(out):
         print(f"{k:40} steps {j['shots']:5}  frames {len(j['frames']):4}  skip {j['skip']:3}  menus {j['menus']:3}  "
               f"{j['stop'] or ''}  {('error: ' + j['error']) if j['errors'] else ''}  [{j['end']}]")
     print(f'jobs {len(jobs)}, distinct frames {len(frames)}, stops: {dict(stops)}')
+    steps = sum(j['shots'] for j in jobs.values())
+    secs = sum(r.get('seconds') or 0 for r in recs if r['ev'] == 'end')
+    moving = sum(1 for r in recs if r['ev'] == 'shot' and r.get('anim'))
+    if steps >= 20 and moving > 0.9 * steps:        # nearly every capture waited for a scene that never settled
+        print(f'warning: {moving} of {steps} captures were taken while something was still moving. An overlay '
+              '(a mod, a HUD screen with an animation) may never stop; list its screens in `ui` or its files in '
+              '`drop`, or leave it out with setup --exclude')
+    if steps >= 20 and secs / steps > 2:            # a healthy engine takes a fraction of a second per interaction
+        print(f'warning: {secs / steps:.1f} s per interaction is very slow; the GPU driver may be in a bad state '
+              '(try --gpu mesa or --display xvfb)')
 
 
 def forget(out, ids):
@@ -61,7 +72,9 @@ def forget(out, ids):
         if not os.path.exists(p):
             continue
         keep, gone = [], 0
-        for line in open(p, encoding='utf-8'):
+        with open(p, encoding='utf-8') as f:
+            lines = f.readlines()
+        for line in lines:
             job = json.loads(line).get('job') if name == 'log.jsonl' else line.strip()
             if job in ids:
                 gone += 1
@@ -92,7 +105,7 @@ def compare(a, b, frames=True):
         return shots, secs
 
     def state(p):
-        return (p.get('file'), p.get('line'), norm(p.get('shown')), p.get('screens'), p.get('files'), p.get('cam'),
+        return (script_path(p.get('file')), p.get('line'), norm(p.get('shown')), p.get('screens'), p.get('files'), p.get('cam'),
                 (p.get('menu') or {}).get('pick'))
 
     sa, ta = load(a)
@@ -145,7 +158,7 @@ def gaps(game, cfg_path, out, show=True):
     values alone, e.g. `if outfit_b` when outfit_a is set), labels matching gaps_skip (whole alternative scenes), and
     lines whose picture was captured elsewhere (a show right before a jump is captured on the first line of the next
     label)."""
-    cfg = json.load(open(cfg_path, encoding='utf-8'))
+    cfg = read_json(cfg_path)
     hubs = re.compile(cfg['stop_labels']) if cfg.get('stop_labels') else None
     skip = re.compile(cfg['gaps_skip']) if cfg.get('gaps_skip') else None
     scope = dict(cfg.get('gaps_scope') or {})
@@ -209,8 +222,7 @@ def gaps(game, cfg_path, out, show=True):
     pics = collections.defaultdict(list)            # tag -> attribute sets that were on screen in some capture
     for r in _records(out) or []:
         if r['ev'] == 'shot' and r.get('file'):
-            f = re.sub(r'^game/', '', r['file'])
-            seen[f[:-1] if f.endswith('.rpyc') else f].add(r.get('line'))
+            seen[script_path(r['file'])].add(r.get('line'))
             for s in r.get('shown') or ():
                 t = s.split()
                 if t and set(t[1:]) not in pics[t[0]]:

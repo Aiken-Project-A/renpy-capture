@@ -8,13 +8,13 @@ RENPY_CAPTURE_IT_GPU the display and GPU.
 """
 import contextlib
 import io
-import json
 import os
 import shutil
 import tempfile
 import unittest
 
 from renpy_capture import analysis, export, runner, sdk
+from renpy_capture.util import read_jsonl, read_text
 
 from .rpatool import pack_game_dir
 
@@ -50,7 +50,7 @@ class TheQuestion(unittest.TestCase):
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
     def records(self, kind):
-        return [json.loads(line) for line in open(os.path.join(self.out[kind][3], 'log.jsonl'), encoding='utf-8')]
+        return read_jsonl(os.path.join(self.out[kind][3], 'log.jsonl'))
 
     def test_every_branch_is_taken(self):
         recs = self.records('loose')
@@ -74,30 +74,35 @@ class TheQuestion(unittest.TestCase):
         names = {r.get('name') for r in self.records('loose') if r['ev'] == 'shot' and r.get('who')}
         self.assertIn('Sylvie', names)
 
+    def compare(self, a, b):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ok = analysis.compare(a, b)
+        self.assertTrue(ok, buf.getvalue())
+
     def test_archive_changes_nothing(self):
-        with contextlib.redirect_stdout(io.StringIO()):
-            self.assertTrue(analysis.compare(self.out['loose'][3], self.out['packed'][3]))
+        self.compare(self.out['loose'][3], self.out['packed'][3])
 
     def test_second_run_is_identical(self):
         game, cfg, rundir, out = self.out['loose']
         again = out + '-again'
         with contextlib.redirect_stdout(io.StringIO()):
             runner.run(rundir, cfg, again, display=DISPLAY, gpu=GPU)
-            self.assertTrue(analysis.compare(out, again))
+        self.compare(out, again)
 
     def test_export(self):
         game, cfg, _rundir, out = self.out['packed']
         dest = os.path.join(self.tmp, 'export')
         with contextlib.redirect_stdout(io.StringIO()):
             export.export(out, game, dest)
-        rows = open(os.path.join(dest, 'shots.tsv'), encoding='utf-8').read().splitlines()
+        rows = read_text(os.path.join(dest, 'shots.tsv')).splitlines()
         shots = [r for r in self.records('packed') if r['ev'] == 'shot']
         self.assertEqual(len(rows) - 1, len(shots))
         header = rows[0].split('\t')
         for row in rows[1:]:
             cells = dict(zip(header, row.split('\t')))
             self.assertTrue(os.path.exists(os.path.join(dest, 'frames', cells['frame'] + '.png')))
-        page = open(os.path.join(dest, 'index.html'), encoding='utf-8').read()
+        page = read_text(os.path.join(dest, 'index.html'))
         self.assertIn('Sylvie', page)
 
 
