@@ -29,7 +29,7 @@ Every record has `ev` (the kind) and `job`.
 | `who`, `name`, `what` | For lines of dialogue: the speaker as written in the script, the name the player sees, and the text as written (with its text tags and `[variables]`). |
 | `tl` | For lines of dialogue: the line's translation id (`start_636ae3f5`), as `translate <language> <id>:` names it in the files of `game/tl/`. |
 | `tl_file`, `tl_line` | When a translation is shown: where its text is (`game/tl/russian/script.rpy`, 40); `file` and `line` stay those of the line it translates. |
-| `menu` | For menus: `n` (the menu's number in the job), `options` (the captions) and `pick` (the option taken), or `wait: true` when the capture waited on it. |
+| `menu` | For menus: `n` (the menu's number in the job), `options` (the captions) and `pick` (the option taken), or `wait: true` when the capture waited on it; `caption`, the line shown with the menu (its own line, or the line said right before it). |
 | `pause` | The length of the pause, for pauses. |
 | `stack` | Return points of the calls in progress (`[file, line]`, innermost last). |
 | `shown` | Images on the master layer: tag and attributes, e.g. `"sylvie green smile"`. |

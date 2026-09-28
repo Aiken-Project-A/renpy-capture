@@ -306,15 +306,16 @@ def export(out, game, dest, opts=None, page=True, beside=None):
                       'statement': r.get('kind') or '', 'who': r.get('who') or '', 'name': r.get('name') or '',
                       'what': r.get('what') or '', 'frame': h or '', 'cg': name, 'skip': 'skip' if r.get('skip') else '',
                       'effects': ' | '.join(effs), 'menu': opts_txt, 'tl': r.get('tl') or '',
-                      'tl_file': script_path(r.get('tl_file')) or '', 'tl_line': r.get('tl_line') or ''})
+                      'tl_file': script_path(r.get('tl_file')) or '', 'tl_line': r.get('tl_line') or '',
+                      'caption': (r.get('menu') or {}).get('caption') or ''})
         if h:
             _place(frame_path(h), os.path.join(dest, 'frames', h + '.png'))
     cols = ['job', 'step', 'file', 'line', 'label', 'statement', 'who', 'name', 'what', 'frame', 'cg', 'skip',
-            'effects', 'menu', 'tl', 'tl_file', 'tl_line']
+            'effects', 'menu', 'tl', 'tl_file', 'tl_line', 'caption']
     apart, blang = {}, None
     if beside:
         apart, blang = _pair(shots, log, beside, dest)
-        cols += ['beside_name', 'beside_what', 'beside_menu', 'beside_frame']
+        cols += ['beside_name', 'beside_what', 'beside_menu', 'beside_caption', 'beside_frame']
     with open(os.path.join(dest, 'shots.tsv'), 'w', encoding='utf-8') as f:
         f.write('\t'.join(cols) + '\n')
         for s in shots:
@@ -336,8 +337,10 @@ def export(out, game, dest, opts=None, page=True, beside=None):
             for n, (kind, fl, d) in fx_defs(scripts, used, list(g.files)).items():
                 f.write('\t'.join((_tsv(n), kind, ' '.join(fl), _tsv(d))) + '\n')
     if page:
-        write_page(dest, shots, os.path.basename(os.path.abspath(game).rstrip(os.sep)),
-                   beside=(blang or 'the capture beside') if beside else None, apart=apart)
+        title = os.path.basename(os.path.abspath(game).rstrip(os.sep))
+        tree = write_choices(dest, log, title)
+        write_page(dest, shots, title, beside=(blang or 'the capture beside') if beside else None, apart=apart,
+                   choices=tree)
     print(f'interactions: {len(shots)}, frames: {len({s["frame"] for s in shots if s["frame"]})}'
           + (f', CG: {len(rows)} (labels {len(counters)})' if cgrx else '') + f', effects: {len(used)}')
     for job, step in apart.items():
@@ -367,7 +370,8 @@ def _pair(shots, log, beside, dest):
             b = {}
         h = b.get('frame') or ''
         s.update(beside_name=b.get('name') or b.get('who') or '', beside_what=b.get('what') or '',
-                 beside_menu=_menu_text(b), beside_frame=h)
+                 beside_menu=_menu_text(b), beside_caption=(b.get('menu') or {}).get('caption') or '',
+                 beside_frame=h)
         if h:
             _place(os.path.join(beside, 'frames', h + '.png'), os.path.join(dest, 'frames', h + '.png'))
     return apart, next((r['language'] for r in blog if r['ev'] == 'start' and r.get('language')), None)
@@ -403,6 +407,14 @@ summary small { color: var(--muted); font-weight: 400; }
 .beside { border-left: 3px solid var(--beside); padding-left: 8px; }
 .beside .who { color: var(--beside); }
 .apart { color: var(--warn); font-style: italic; }
+header a, .tree a { color: var(--pick); }
+.tree { padding: 6px 14px 12px; }
+.tree ul { list-style: none; margin: 0; padding-left: 18px; border-left: 1px solid var(--line); }
+.tree > ul { padding-left: 0; border: 0; }
+.tree li { margin: 4px 0; }
+.ask { font-style: italic; }
+.tree .untaken { color: var(--muted); }
+.tree .end { color: var(--muted); }
 @media (max-width: 760px) { .shot, .shot.two { grid-template-columns: 1fr; } }
 """
 
@@ -420,24 +432,42 @@ def _menu(text, cls=''):
     return f'<ul class="menu{cls}">{lis}</ul>'
 
 
-def write_page(dest, shots, title, beside=None, apart=None):
+def _anchor(job, step):
+    return f's-{job}-{step}'
+
+
+OPEN_TARGET = """<script>
+function openTarget() {
+  var t = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+  if (!t) return;
+  for (var d = t.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) d.open = true;
+  t.scrollIntoView();
+}
+addEventListener('hashchange', openTarget);
+addEventListener('DOMContentLoaded', openTarget);
+</script>"""
+
+
+def write_page(dest, shots, title, beside=None, apart=None, choices=False):
     """index.html: jobs as sections; consecutive lines on the same frame share one picture. With ``beside`` (the
-    name of the other capture: its language), its lines follow these, its frame follows when it differs."""
+    name of the other capture: its language), its lines follow these, its frame follows when it differs. Every step
+    has an anchor (#s-<job>-<step>) that opens its section."""
     jobs = collections.OrderedDict()
     for s in shots:
         jobs.setdefault(s['job'], []).append(s)
     esc = html.escape
     parts = [f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
              f'<meta name="viewport" content="width=device-width, initial-scale=1">'
-             f'<title>{esc(title)} · renpy-capture</title><style>{PAGE_CSS}</style></head><body>',
+             f'<title>{esc(title)} · renpy-capture</title><style>{PAGE_CSS}</style>{OPEN_TARGET}</head><body>',
              f'<header><h1>{esc(title)}</h1><p>{len(shots)} interactions in {len(jobs)} jobs, '
              f'{len({s["frame"] for s in shots if s["frame"]})} distinct frames'
-             + (f'; beside them: {esc(beside)}' if beside else '') + '</p></header><main>']
+             + (f'; beside them: {esc(beside)}' if beside else '')
+             + ('; <a href="choices.html">the tree of choices</a>' if choices else '') + '</p></header><main>']
     for job, items in jobs.items():
         label = next((s['label'] for s in items if s['label']), '')
         parts.append(f'<details{" open" if len(jobs) == 1 else ""}><summary>{esc(job)} '
                      f'<small>{esc(label)} · {len(items)} interactions</small></summary>')
-        groups = []
+        groups, prev, bprev = [], '', ''
         for s in items:
             pair = (s['frame'], s.get('beside_frame', ''))
             if groups and groups[-1][0] == pair and s['frame']:
@@ -452,6 +482,12 @@ def write_page(dest, shots, title, beside=None, apart=None):
                 img += f'</div><div><img loading="lazy" src="frames/{bframe}.png" alt="">'
             body = []
             for s in lines:
+                body.append(f'<a id="{esc(_anchor(job, s["step"]))}"></a>')
+                if s['caption'] and s['caption'] != prev:    # the line shown with a menu, unless it was just said
+                    body.append(f'<p class="ask">{esc(s["caption"])}</p>')
+                if s.get('beside_caption') and s['beside_caption'] != bprev:
+                    body.append(f'<p class="ask beside">{esc(s["beside_caption"])}</p>')
+                prev, bprev = s['what'] or prev, s.get('beside_what') or bprev
                 if apart and apart.get(job) == s['step']:
                     body.append(f'<p class="apart">From here on {esc(beside)} took another way.</p>')
                 tl = (f' · {esc(s["tl_file"])}:{s["tl_line"]}' if s['tl_file'] else '') + \
@@ -473,3 +509,129 @@ def write_page(dest, shots, title, beside=None, apart=None):
     parts.append('</main></body></html>')
     with open(os.path.join(dest, 'index.html'), 'w', encoding='utf-8') as f:
         f.write('\n'.join(parts))
+
+
+def _paths(log):
+    """Per job: its family (the id before "~": explore names the jobs it adds after the job they come from), its
+    menus in order as (menu shot, the option taken or "timer" when the game's own timer led on, the line before it),
+    and how it ended."""
+    jobs = collections.OrderedDict()
+    for r in log:
+        j = r.get('job')
+        if j is None:
+            continue
+        d = jobs.setdefault(j, {'shots': [], 'end': None, 'stop': None})
+        if r['ev'] == 'shot':
+            d['shots'].append(r)
+        elif r['ev'] in ('end', 'stop'):
+            d[r['ev']] = r
+    for j, d in jobs.items():
+        menus, shots = [], d['shots']
+        for k, r in enumerate(shots):
+            m = r.get('menu')
+            if not m:
+                continue
+            nxt = shots[k + 1] if k + 1 < len(shots) else None
+            if m.get('wait'):
+                if nxt and (nxt.get('menu') or {}).get('pick') is not None \
+                        and (nxt.get('file'), nxt.get('line')) == (r.get('file'), r.get('line')):
+                    continue                        # answered after wait_max: the next record is the answer
+                pick = 'timer'
+            else:
+                pick = m.get('pick')
+            ask = m.get('caption') or next((p.get('what') for p in reversed(shots[:k]) if p.get('what')), '')
+            menus.append((r, pick, ask))
+        d['menus'] = menus
+        d['family'] = j.split('~')[0]
+    return jobs
+
+
+def write_choices(dest, log, title):
+    """choices.html: for every family of jobs, the tree of the menus met and the options taken, each option linked to
+    the step of index.html where it was taken, down to where the jobs ended. A run of menus without a branch is one
+    line after another; only a branch opens a new level. Returns False when no job met a menu."""
+    esc = html.escape
+    jobs = _paths(log)
+    if not any(d['menus'] for d in jobs.values()):
+        return False
+
+    def node():
+        return {'edges': collections.OrderedDict(), 'menus': {}, 'first': {}, 'ends': []}
+
+    roots = collections.OrderedDict()
+    for j, d in jobs.items():
+        n = roots.setdefault(d['family'], node())
+        for r, pick, ask in d['menus']:
+            place = (script_path(r.get('file')), r.get('line'))
+            n['menus'].setdefault(place, (r['menu'].get('options', []), ask))
+            key = (place, pick)
+            if key not in n['edges']:
+                n['edges'][key], n['first'][key] = node(), (j, r['seq'])
+            n = n['edges'][key]
+        last = d['shots'][-1] if d['shots'] else {}
+        why = (d['end'] or {}).get('why') or 'no end'
+        if d['stop']:
+            why = f"stop ({d['stop'].get('why')}{' ' + d['stop']['label'] if d['stop'].get('label') else ''})"
+        n['ends'].append((j, last, why, len(d['shots'])))
+
+    def option(opts, pick):
+        return "the game's own timer" if pick == 'timer' else (opts[pick] if isinstance(pick, int) and
+                                                               pick < len(opts) else f'option {pick}')
+
+    def menu_head(place, n):
+        opts, ask = n['menus'][place]
+        return (f'<span class="ask">{esc(ask)}</span> ' if ask else '') + \
+            f'<span class="meta">{esc(place[0])}:{place[1]}</span>'
+
+    def link(key, n, text):
+        j, seq = n['first'][key]
+        return f'<a href="index.html#{esc(_anchor(j, seq))}">{esc(text)}</a>'
+
+    def others(place, n, taken):
+        opts = n['menus'][place][0]
+        rest = [o for k, o in enumerate(opts) if k not in taken]
+        return f' <span class="untaken">(not taken: {esc(" · ".join(rest))})</span>' if rest else ''
+
+    def render(n, out):
+        while len(n['edges']) == 1 and not n['ends']:          # no branch: one line, the same level
+            (place, pick), child = next(iter(n['edges'].items()))
+            opts, times = n['menus'][place][0], 1
+            while len(child['edges']) == 1 and not child['ends'] and next(iter(child['edges'])) == (place, pick):
+                child, times = next(iter(child['edges'].values())), times + 1    # the same menu again (a mini-game)
+            out.append(f'<li>{menu_head(place, n)} → {link((place, pick), n, option(opts, pick))}'
+                       f'{f" × {times}" if times > 1 else ""}{others(place, n, {pick})}</li>')
+            n = child
+        by_place = collections.OrderedDict()
+        for (place, pick), child in n['edges'].items():
+            by_place.setdefault(place, []).append((pick, child))
+        for place, picks in by_place.items():
+            opts = n['menus'][place][0]
+            out.append(f'<li>{menu_head(place, n)}{others(place, n, {p for p, _ in picks})}<ul>')
+            for pick, child in picks:
+                out.append(f'<li>→ {link((place, pick), n, option(opts, pick))}<ul>')
+                render(child, out)
+                out.append('</ul></li>')
+            out.append('</ul></li>')
+        for j, last, why, steps in n['ends']:
+            where = f"{script_path(last.get('file'))}:{last.get('line')}" if last else ''
+            out.append(f'<li class="end">■ {esc(why)} · <a href="index.html#{esc(_anchor(j, last.get("seq")))}">'
+                       f'{esc(j)}</a> · {steps} steps · {esc(last.get("label") or "")} · {esc(where)}</li>')
+
+    parts = [f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
+             f'<meta name="viewport" content="width=device-width, initial-scale=1">'
+             f'<title>{esc(title)} · choices · renpy-capture</title><style>{PAGE_CSS}</style></head><body>',
+             f'<header><h1>{esc(title)}: the tree of choices</h1><p>Every menu the capture met and the options it '
+             f'took; each option opens the step in <a href="index.html">the whole capture</a>.</p></header><main>']
+    for fam, root in roots.items():
+        members = [j for j, d in jobs.items() if d['family'] == fam]
+        places = {(script_path(r.get('file')), r.get('line')) for j in members for r, _p, _a in jobs[j]['menus']}
+        parts.append(f'<details{" open" if len(roots) == 1 else ""}><summary>{esc(fam)} <small>{len(members)} jobs · '
+                     f'{len(places)} menus</small></summary><div class="tree"><ul>')
+        out = []
+        render(root, out)
+        parts.extend(out)
+        parts.append('</ul></div></details>')
+    parts.append('</main></body></html>')
+    with open(os.path.join(dest, 'choices.html'), 'w', encoding='utf-8') as f:
+        f.write('\n'.join(parts))
+    return True

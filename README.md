@@ -32,8 +32,8 @@ https://aiken-project-a.github.io/renpy-capture/the-question-ru/
   differs. `gaps` lists the scene and show lines that no path through the game reaches — a branch behind a flag that
   is never set.
 - **Proofreaders and editors.** The whole game on one scrollable page, every branch included.
-- **Wikis, archives and researchers.** Every scene of a game and its whole tree of choices; event pictures (CG) can be
-  cut out and named after the labels that show them.
+- **Wikis, archives and researchers.** Every scene of a game and its whole tree of choices (`choices.html`); event
+  pictures (CG) can be cut out and named after the labels that show them.
 - **Content review.** Every scene of every branch without playing the game — before an age rating, for example.
 
 ## Why it works this way
@@ -135,6 +135,9 @@ renpy-capture export out-text/ ~/Games/MyGame export-ru/ --beside out-ru-text/  
   menu and picture of the other capture too.
 - `export/index.html` — the same as a page: jobs as sections, each picture with the lines spoken over it; with
   `--beside`, the other capture's lines under these and its picture next to this one when it differs.
+- `export/choices.html` — the tree of choices: every menu met, the line shown with it and the options taken, each
+  one a link to its step on the page, down to where every job ended (a mini-game's menu met again and again is one
+  line).
 - `export/cg/` and `cg.tsv` — event pictures, when `export --options` names the image files that make one
   ([docs/config.md](docs/config.md#export-options)).
 

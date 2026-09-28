@@ -10,6 +10,7 @@ import contextlib
 import html
 import io
 import os
+import re
 import shutil
 import tempfile
 import unittest
@@ -190,6 +191,15 @@ class TheQuestion(unittest.TestCase):
             self.assertTrue(os.path.exists(os.path.join(dest, 'frames', cells['frame'] + '.png')))
         page = read_text(os.path.join(dest, 'index.html'))
         self.assertIn('Sylvie', page)
+        self.assertIn('href="choices.html"', page)
+        tree = read_text(os.path.join(dest, 'choices.html'))        # the tree of choices: every option of every menu,
+        links = re.findall(r'href="index.html#([^"]+)"', tree)        # each one a link to a step of the page
+        self.assertTrue(links)
+        for a in links:
+            self.assertIn(f'id="{a}"', page)
+        for m in (r['menu'] for r in shots if r.get('menu')):
+            for o in m['options']:
+                self.assertIn(html.escape(o), tree)
 
 
 if __name__ == '__main__':

@@ -360,10 +360,14 @@ init python:
             items = [i for i in choice.scope.get("items", []) if getattr(i, "action", None) is not None]
             plan = P.job.get("choices", [])
             caps = [renpy.substitute(i.caption) for i in items]
+            say = renpy.get_screen("say")              # the line shown with the menu (its caption, or the say before)
+            ask = say.scope.get("what") if say is not None else None
             if P.wait is not None and P.wait_node is None and any(P.wait.search(c) for c in caps):
                 rec["menu"] = {"n": P.menu_i, "options": caps, "wait": True}   # a timed mini-game menu: no answer,
                 P.wait_node, P.wait_t0, P.wait_beat = ctx.current, iface.frame_time, -999   # its timer leads to
-                _rc_emit(rec)                                                    # the "too late" outcome by itself
+                if ask:                                                          # the "too late" outcome by itself
+                    rec["menu"]["caption"] = ask
+                _rc_emit(rec)
                 return
             mkey = (getattr(node, "filename", None), getattr(node, "linenumber", None))
             again = P.menus_seen.get(mkey, 0)
@@ -376,6 +380,8 @@ init python:
                 k = next((n for n, c in enumerate(caps) if P.prefer is not None and P.prefer.search(c)), 0)
             k = min(k, len(items) - 1) if items else 0
             rec["menu"] = {"n": P.menu_i, "options": caps, "pick": k}
+            if ask:
+                rec["menu"]["caption"] = ask
             P.menu_i += 1
             value = items[k].action() if items else True
         elif renpy.get_screen("input") is not None:

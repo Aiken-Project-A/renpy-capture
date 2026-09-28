@@ -107,6 +107,8 @@ jobs:
           <ul class="links">
             <li><a href="the-question/index.html">See the whole result for The Question
               <span>Every scene of every branch, as a page to read like a book</span></a></li>
+            <li><a href="the-question/choices.html">The tree of choices
+              <span>Every menu and the options taken, down to each ending</span></a></li>
             <li><a href="the-question/shots.tsv">Every interaction as a table
               <span>shots.tsv — job, line, speaker, text, picture</span></a></li>
             <li><a href="the-question-ru/index.html">The Russian translation beside the original
