@@ -107,6 +107,13 @@ chosen by flags set much earlier can be captured with exact jobs (`gaps` tells w
   (RPA-2.0 and RPA-3.0). The index of an archive is read without running code from it; custom and obfuscated
   archive formats are not supported.
 
+## Tests
+
+```sh
+python -m unittest discover -s tests -t .                        # unit tests: no engine, no network
+RENPY_CAPTURE_IT=1 python -m unittest tests.test_the_question    # end to end on The Question (downloads the SDK once)
+```
+
 ## Be kind to the authors
 
 Capture games you own. The frames are the authors' work: do not publish them without their permission.
