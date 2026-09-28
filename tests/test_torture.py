@@ -4,7 +4,8 @@ renpy-capture that The Question never touches: nested and flag-gated menus, a qu
 answer, renpy.pause/{w=}/{nw}, a timed choice that times out to a default, NVL mode with a named speaker, a
 layeredimage whose attributes change between lines, one-shot and endless ATL, dissolve/fade transitions, a screen
 that is part of the scene next to a HUD screen that is not, a shared procedure reached by call/return from two
-scenes, renpy.random and a full restart.
+scenes, renpy.random and a full restart; its own say and choice screens, drawn with text, and a click-to-continue
+indicator that blinks for ever.
 
 Opt-in (it downloads the SDK once and needs a display backend): RENPY_CAPTURE_IT=1 python -m unittest
 tests.test_torture. RENPY_CAPTURE_IT_VERSION picks the SDK (default 8.3.2), RENPY_CAPTURE_IT_DISPLAY and
@@ -144,6 +145,23 @@ class TortureTest(unittest.TestCase):
             if r['ev'] == 'shot' and r.get('what') in want:
                 got[r['what']].add(r['label'])
         self.assertEqual({w: {lab} for w, lab in want.items()}, dict(got))
+
+    QUINN = ('Here I am, feeling perfectly calm.', 'Wait — did you hear that?', 'Never mind. All clear again.')
+
+    def test_a_blinking_indicator_is_not_motion(self):
+        """Quinn's lines come with a click-to-continue indicator that blinks for ever, in a scene that does not move:
+        they are captured at rest, without text (the indicator is in the invisible stand-in) and with it (drawn)."""
+        text = os.path.join(self.tmp, 'out-text')
+        with contextlib.redirect_stdout(io.StringIO()):
+            runner.run(self.rundir, self.cfg, text, display=DISPLAY, gpu=GPU, text=True)
+        for out in (self.out, text):
+            quinn = [r for r in self.records(out) if r['ev'] == 'shot' and r.get('what') in self.QUINN]
+            self.assertTrue(quinn, out)
+            self.assertFalse([r for r in quinn if r.get('anim')], out)
+        plain = {(r['job'], r['seq']): r['frame'] for r in self.records(self.again) if r['ev'] == 'shot'}
+        for r in self.records(text):
+            if r['ev'] == 'shot' and r.get('what') in self.QUINN:
+                self.assertNotEqual(r['frame'], plain[r['job'], r['seq']])     # the window is in the frame
 
     def test_export_covers_every_scene(self):
         dest = os.path.join(self.tmp, 'export')

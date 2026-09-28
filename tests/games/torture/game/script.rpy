@@ -5,7 +5,7 @@
 
 define narrator_ivy = Character("Ivy", kind=nvl)
 define pip = Character("Pip", color="#ffdd66")
-define quinn = Character("Quinn", color="#88ddff")
+define quinn = Character("Quinn", color="#88ddff", ctc="quinn_ctc", ctc_position="nestled")   # a blinking click-to-continue
 
 default found_key = False
 default veteran_mode = False

@@ -8,7 +8,8 @@
   and `gaps` work across languages, and `compare` with the original shows the translation takes the game the same way.
 - Every line of dialogue has its translation id (`tl`) in the log, in `shots.tsv` and on the page.
 - `--text` (config `text`) keeps the game's own dialogue window, speech bubbles, NVL page and menus in the frames:
-  how the text fits the window, whether the font has the glyphs.
+  how the text fits the window, whether the font has the glyphs. A game without a dialogue window of its own gets the
+  engine's built-in one.
 - `export --beside OTHER_OUT` puts a second capture of the same jobs (a translation) next to the first, step by step:
   its lines under these, its frame next to this one; the pairs of a job end where it takes another way.
 
@@ -27,8 +28,10 @@
   procedure called.
 - A game shipped as `.rpy` sources could not be captured twice (the engine's compiled scripts were taken for changes
   made by hand), and a script in a subfolder was compiled through the link into the game itself.
-- The Ren'Py version of games made with Ren'Py 7.5 and later (`version = u'…'`) is read again; a project inside an
-  SDK folder takes that SDK's version.
+- The Ren'Py version of games made with Ren'Py 7.5 and later (`version = u'…'`) is read; a project inside an SDK
+  folder takes that SDK's version.
+- A click-to-continue indicator that blinks for ever no longer keeps a line from settling (each such line was
+  captured only at `settle_max`, as if the scene were moving).
 
 ## 0.1.0 — 2026-09-28
 

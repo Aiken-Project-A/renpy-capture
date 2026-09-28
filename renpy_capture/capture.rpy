@@ -24,8 +24,19 @@ init -501 python:
                             if k[0] in ("say", "bubble", "choice"))
 
 init 1 python:
+    def _rc_text_screens():
+        """With text: the game's own screens again. A dialogue window the game does not define is drawn by the
+        engine itself (the stand-in goes); a menu needs a choice screen to be answered, so that stand-in stays."""
+        s = renpy.display.screen
+        for k in [k for k in s.screens if k[0] in ("say", "bubble") and k not in _rc_game_screens]:
+            del s.screens[k]
+            s.screens_by_name[k[0]].pop(k[1], None)
+        for k, v in _rc_game_screens.items():
+            s.screens[k] = v
+            s.screens_by_name[k[0]][k[1]] = v
+
     if _rc_P.text:
-        renpy.display.screen.screens.update(_rc_game_screens)
+        _rc_text_screens()
 
 screen say(who, what):
     text what id "what" size 1 color "#0000" outlines [] xpos -50
@@ -521,17 +532,23 @@ init python:
 
     renpy.display.core.Interface.draw_screen = _rc_draw_screen
 
-    # Interface screens are not drawn (their logic stays alive: scope, widgets, actions).
+    # Interface screens are not drawn (their logic stays alive: scope, widgets, actions). Their motion does not keep a
+    # scene from settling, and neither does the motion of the screens of the text (a click-to-continue indicator that
+    # blinks, invisible in the stand-in and drawn with `text`): a line is captured once the scene itself is at rest.
     _rc_orig_screen_render = renpy.display.screen.ScreenDisplayable.render
 
     def _rc_screen_render(self, w, h, st, at):
         rv = _rc_orig_screen_render(self, w, h, st, at)
-        if _rc_P.active and _rc_is_ui(self.screen_name[0]):
-            ids = _rc_P.hidden_ids
+        P = _rc_P
+        n = self.screen_name[0]
+        ui = P.active and _rc_is_ui(n)
+        if ui or (P.active and n in _RC_TEXT):
+            ids = P.hidden_ids
             try:
                 self.visit_all(lambda d: ids.add(id(d)))
             except Exception:
                 pass
+        if ui:
             return renpy.display.render.Render(w, h)
         return rv
 

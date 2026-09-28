@@ -62,7 +62,7 @@ expressions and match anywhere in the string (`re.search`) unless stated otherwi
 | `trans_max` | 8 | The longest wait for a transition, in seconds. |
 | `instant_camera` | `true` | Camera moves (`camera:` with ATL) jump to their final position. |
 | `virtual_clock` | `true` | Game time advances by `timewarp/60` s per drawn frame instead of following the wall clock: runs are repeatable to the byte. |
-| `text` | `false` | Keep the game's own dialogue window, speech bubbles, NVL page and menus in the frames (the same as `--text`): every line and menu gets a frame of its own, to check how a translation fits the window and whether the font has its glyphs. Without it a frame shows the scene alone. |
+| `text` | `false` | Keep the game's own dialogue window, speech bubbles, NVL page and menus in the frames (the same as `--text`): every line and menu gets a frame of its own, to check how a translation fits the window and whether the font has its glyphs. Without it a frame shows the scene alone. A game that defines no `say` screen gets the engine's built-in window; one without a `choice` screen keeps its menus invisible (the capture answers menus through that screen). |
 | `fast` | `false` | Skip the frames a scene draws while it settles; only the frames where the capture decides are drawn (the same as `--fast`). The same scenes and course of the game, but a motion that stops between two drawn frames is seen later, so later animations can be caught in another phase than without it. Jobs that let screen timers run (`ui_timers`, `wait_menus`) keep every frame. Repeatable to the byte among runs with `fast`. |
 
 ## When a job ends

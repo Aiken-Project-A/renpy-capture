@@ -10,6 +10,14 @@ image glow_orb = Composite((160, 160), (0, 0), Solid("#332200", xsize=160, ysize
 image flourish_mark = Text("*", size=90, color="#ffffff")
 image veteran_relic = Solid("#886633", xsize=120, ysize=120)
 
+# Quinn's click-to-continue indicator blinks for ever: a static scene with it is still at rest.
+image quinn_ctc:
+    Solid("#88ddff", xsize=14, ysize=14)
+    alpha 1.0
+    linear 0.5 alpha 0.2
+    linear 0.5 alpha 1.0
+    repeat
+
 layeredimage hero:
     attribute calm default:
         Solid("#4a6fa5", xsize=220, ysize=320)
