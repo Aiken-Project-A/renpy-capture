@@ -25,7 +25,7 @@ Every record has `ev` (the kind) and `job`.
 | `seq` | The step within the job, from 1. |
 | `kind` | The statement: `Say`, `TranslateSay`, `Menu`, `UserStatement`, `Pause`… (the class of the Ren'Py node). |
 | `file`, `line` | Where the statement is in the scripts (`game/script.rpy`, 120). |
-| `label`, `at` | The last story label entered (not starting with `_`) and the last label of any kind. |
+| `label`, `at` | The label the statement belongs to in the script, as Ren'Py names lines for translation: the last story label above it in its file (not starting with `_`) and the last label of any kind. After a `call` returns, the lines are the caller's again; a line of a translation (`tl/`) has the label of the line it translates. |
 | `who`, `name`, `what` | For lines of dialogue: the speaker as written in the script, the name the player sees, and the text as written (with its text tags and `[variables]`). |
 | `menu` | For menus: `n` (the menu's number in the job), `options` (the captions) and `pick` (the option taken), or `wait: true` when the capture waited on it. |
 | `pause` | The length of the pause, for pauses. |

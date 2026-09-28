@@ -10,6 +10,7 @@ Opt-in (it downloads the SDK once and needs a display backend): RENPY_CAPTURE_IT
 tests.test_torture. RENPY_CAPTURE_IT_VERSION picks the SDK (default 8.3.2), RENPY_CAPTURE_IT_DISPLAY and
 RENPY_CAPTURE_IT_GPU the display and GPU.
 """
+import collections
 import contextlib
 import io
 import json
@@ -130,6 +131,19 @@ class TortureTest(unittest.TestCase):
         after = shots[waited[0] + 1]
         self.assertNotIn('menu', after)                     # not answered by the capture after wait_max
         self.assertEqual(after.get('what'), 'The left lever grinds and the gate slides open.')
+
+    def test_a_line_after_a_call_returns_has_the_callers_label(self):
+        """shared_flourish is called from three scenes: its own line has its label, and the line after each call has
+        the label of the scene that called it, not of the last label entered."""
+        want = {'A shimmering flourish briefly lights the air.': 'shared_flourish',
+                'A soft chime plays as the flourish settles.': 'timing_scene',
+                'The flourish returns here, shared with the transitions scene.': 'atl_scene',
+                'The flourish appears here too, shared with the ATL scene.': 'transitions_scene'}
+        got = collections.defaultdict(set)
+        for r in self.records():
+            if r['ev'] == 'shot' and r.get('what') in want:
+                got[r['what']].add(r['label'])
+        self.assertEqual({w: {lab} for w, lab in want.items()}, dict(got))
 
     def test_export_covers_every_scene(self):
         dest = os.path.join(self.tmp, 'export')

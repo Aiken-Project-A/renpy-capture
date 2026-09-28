@@ -42,7 +42,7 @@ transform _rc_still:
 
 init python:
     import os as _rc_os, io as _rc_io, re as _rc_re, json as _rc_json, time as _rc_time
-    import hashlib as _rc_hashlib, traceback as _rc_tb
+    import hashlib as _rc_hashlib, traceback as _rc_tb, bisect as _rc_bisect
     try:
         import ctypes as _rc_ctypes
     except Exception:
@@ -66,7 +66,7 @@ init python:
                      stubs=set(), timers=None, wait=None, wait_node=None, wait_t0=0.0, nulls=set(),
                      stop_labels=None, trans=False, fx_screens=None, fx_files=None, hidden_text={}, dt=0.0,
                      vclock=0.0, cap_anim=False, cap_peak=False, vis_prev=None, hidden_ids=set(), persist0=None,
-                     prof=None, raw_seen={}, fast=False)
+                     prof=None, raw_seen={}, fast=False, label_lines=None)
 
     def _rc_rx(v):
         return _rc_re.compile(v) if v else None
@@ -216,12 +216,44 @@ init python:
         except Exception:
             return None
 
+    def _rc_script_label(node):
+        """The label a statement belongs to in the script, as Ren'Py names lines for translation: the last label above
+        it in its file, as (story label, not starting with _; label of any kind). A line of a translation (tl/)
+        belongs to the label of the line it translates. None when the script does not tell (code above every label)."""
+        P = _rc_P
+        if P.label_lines is None:
+            by = {}
+            for s in getattr(renpy.game.script, "all_stmts", None) or ():
+                if isinstance(s, renpy.ast.Label):
+                    by.setdefault(s.filename, []).append((s.linenumber, s.name))
+            P.label_lines = {}
+            for fn, v in by.items():
+                v.sort()
+                story, rows = None, []
+                for ln, name in v:
+                    if not name.startswith("_"):
+                        story = name
+                    rows.append((story, name))
+                P.label_lines[fn] = ([ln for ln, _n in v], rows)
+        fn, ln = getattr(node, "filename", None), getattr(node, "linenumber", None)
+        if fn not in P.label_lines:
+            try:
+                t = renpy.game.script.translator.default_translates.get(renpy.game.context().translate_identifier)
+            except Exception:
+                t = None
+            fn, ln = getattr(t, "filename", None), getattr(t, "linenumber", None)
+        lines, rows = P.label_lines.get(fn, ((), ()))
+        k = _rc_bisect.bisect_right(lines, ln or 0) - 1
+        return rows[k] if k >= 0 else None
+
     def _rc_capture(iface, files=None):
         P = _rc_P
         ctx = renpy.game.context()
         node = _rc_node()
         P.seq += 1
-        rec = {"ev": "shot", "job": P.job["id"], "seq": P.seq, "label": P.scene, "at": P.label,
+        lab = _rc_script_label(node) or (None, None)    # after a call returns, the caller's label again: the labels
+        rec = {"ev": "shot", "job": P.job["id"], "seq": P.seq,     # entered (callbacks) are only the fallback
+               "label": lab[0] or P.scene, "at": lab[1] or P.label,
                "kind": type(node).__name__ if node is not None else None,
                "file": getattr(node, "filename", None), "line": getattr(node, "linenumber", None)}
         if isinstance(node, renpy.ast.Say):
