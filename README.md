@@ -134,7 +134,8 @@ renpy-capture export out-text/ ~/Games/MyGame export-ru/ --beside out-ru-text/  
   (variable and name), text, picture, menu options with the one taken, translation id; with `--beside`, the line,
   menu and picture of the other capture too.
 - `export/index.html` — the same as a page: jobs as sections, each picture with the lines spoken over it; with
-  `--beside`, the other capture's lines under these and its picture next to this one when it differs.
+  `--beside`, the other capture's lines under these and its picture next to this one when it differs. A search box
+  filters the lines by text, speaker, script line or translation id (`index.html?q=Sylvie` opens with a search).
 - `export/choices.html` — the tree of choices: every menu met, the line shown with it and the options taken, each
   one a link to its step on the page, down to where every job ended (a mini-game's menu met again and again is one
   line).

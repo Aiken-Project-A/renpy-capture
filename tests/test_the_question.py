@@ -192,6 +192,7 @@ class TheQuestion(unittest.TestCase):
         page = read_text(os.path.join(dest, 'index.html'))
         self.assertIn('Sylvie', page)
         self.assertIn('href="choices.html"', page)
+        self.assertIn('<input id="q" type="search"', page)
         tree = read_text(os.path.join(dest, 'choices.html'))        # the tree of choices: every option of every menu,
         links = re.findall(r'href="index.html#([^"]+)"', tree)        # each one a link to a step of the page
         self.assertTrue(links)

@@ -385,6 +385,7 @@ PAGE_CSS = """
           --beside: #e0b050; --warn: #ff8a80; }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, sans-serif; }
 header { padding: 20px 16px 8px; max-width: 1400px; margin: auto; }
 header h1 { margin: 0 0 4px; font-size: 22px; }
@@ -413,6 +414,10 @@ header a, .tree a { color: var(--pick); }
 .tree > ul { padding-left: 0; border: 0; }
 .tree li { margin: 4px 0; }
 .ask { font-style: italic; }
+.search { margin-top: 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.search input { width: 100%; max-width: 420px; padding: 6px 10px; font: inherit; color: var(--ink);
+                background: var(--card); border: 1px solid var(--line); border-radius: 6px; }
+.search span { color: var(--muted); font-size: 14px; }
 .tree .untaken { color: var(--muted); }
 .tree .end { color: var(--muted); }
 @media (max-width: 760px) { .shot, .shot.two { grid-template-columns: 1fr; } }
@@ -445,6 +450,29 @@ function openTarget() {
 }
 addEventListener('hashchange', openTarget);
 addEventListener('DOMContentLoaded', openTarget);
+addEventListener('DOMContentLoaded', function () {
+  var q = document.getElementById('q'), found = document.getElementById('found'), timer;
+  if (!q) return;
+  var shots = Array.prototype.slice.call(document.querySelectorAll('.shot'));
+  var texts = shots.map(function (s) { return s.querySelector('.lines').textContent.toLowerCase(); });
+  var jobs = Array.prototype.slice.call(document.querySelectorAll('main > details'));
+  function search() {
+    var v = q.value.trim().toLowerCase(), hits = 0, per = new Map();
+    shots.forEach(function (s, i) {
+      var ok = !v || texts[i].indexOf(v) >= 0;
+      s.hidden = !ok;
+      if (ok && v) { hits++; var d = s.closest('details'); per.set(d, (per.get(d) || 0) + 1); }
+    });
+    jobs.forEach(function (d) {
+      d.hidden = !!v && !per.get(d);
+      if (v && per.get(d)) d.open = true;
+    });
+    found.textContent = v ? hits + ' found' : '';
+  }
+  q.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(search, 150); });
+  var p = new URLSearchParams(location.search).get('q');
+  if (p) { q.value = p; search(); }
+});
 </script>"""
 
 
@@ -462,7 +490,9 @@ def write_page(dest, shots, title, beside=None, apart=None, choices=False):
              f'<header><h1>{esc(title)}</h1><p>{len(shots)} interactions in {len(jobs)} jobs, '
              f'{len({s["frame"] for s in shots if s["frame"]})} distinct frames'
              + (f'; beside them: {esc(beside)}' if beside else '')
-             + ('; <a href="choices.html">the tree of choices</a>' if choices else '') + '</p></header><main>']
+             + ('; <a href="choices.html">the tree of choices</a>' if choices else '') + '</p>'
+             '<div class="search"><input id="q" type="search" placeholder="Search: text, speaker, script line, '
+             'translation id" aria-label="Search the lines"><span id="found"></span></div></header><main>']
     for job, items in jobs.items():
         label = next((s['label'] for s in items if s['label']), '')
         parts.append(f'<details{" open" if len(jobs) == 1 else ""}><summary>{esc(job)} '
