@@ -51,3 +51,9 @@ jobs:
           RENPY_CAPTURE_IT_DISPLAY: xvfb
           RENPY_CAPTURE_IT_VERSION: ${{ matrix.renpy-version }}
         run: python -m unittest tests.test_the_question -v
+      - name: Capture the Torture Test under Xvfb
+        env:
+          RENPY_CAPTURE_IT: '1'
+          RENPY_CAPTURE_IT_DISPLAY: xvfb
+          RENPY_CAPTURE_IT_VERSION: ${{ matrix.renpy-version }}
+        run: python -m unittest tests.test_torture -v
