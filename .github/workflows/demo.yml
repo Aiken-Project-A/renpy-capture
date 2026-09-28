@@ -53,20 +53,17 @@ jobs:
           shutil.copytree(os.path.join(sdk, 'the_question'), os.environ['GAME'],
                            ignore=shutil.ignore_patterns('saves', 'cache'))
           "
-      - name: Write a starter config
-        run: renpy-capture init "$GAME" "$WORK/config.json"
-      - name: Make the launch folder
-        run: renpy-capture setup "$GAME" "$WORK/run" --renpy-version 8.3.2
-      - name: Capture every branch under Xvfb
-        run: renpy-capture explore "$WORK/run" "$WORK/config.json" "$WORK/out" --display xvfb
-      - name: Export the capture
-        run: renpy-capture export "$WORK/out" "$GAME" site/the-question
+      - name: Capture every branch in one command, and the pages
+        run: renpy-capture capture "$GAME" "$WORK" --display xvfb --renpy-version 8.3.2
       - name: Capture the text in English and in the Russian translation
         run: |
-          renpy-capture run "$WORK/run" "$WORK/config.json" "$WORK/out-text" --display xvfb --text
-          renpy-capture run "$WORK/run" "$WORK/config.json" "$WORK/out-ru-text" --display xvfb --text --language russian
-      - name: Export them side by side
-        run: renpy-capture export "$WORK/out-text" "$GAME" site/the-question-ru --beside "$WORK/out-ru-text"
+          renpy-capture capture "$GAME" "$WORK" --display xvfb --text
+          renpy-capture capture "$GAME" "$WORK" --display xvfb --text --language russian
+      - name: Put the pages on the site
+        run: |
+          mkdir -p site
+          cp -r "$WORK/export" site/the-question
+          cp -r "$WORK/export-text-russian" site/the-question-ru
       - name: Write the landing page
         run: |
           cat > site/index.html <<'HTML'

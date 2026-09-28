@@ -15,12 +15,14 @@ def _records(out):
     return read_jsonl(p)
 
 
-def report(out):
-    """Per job: interactions captured, distinct frames, skipped frames, menus, why it stopped, errors, duration."""
+def report(out, brief=False):
+    """Per job: interactions captured, distinct frames, skipped frames, menus, why it stopped, errors, duration; then
+    warnings and where the time went. ``brief`` (between rounds of explore) keeps the warnings and the jobs that
+    stopped on an error only. Returns the totals: jobs, lines, pictures, jobs with errors."""
     recs = _records(out)
     if recs is None:
         print('no log: the engine did not record a single event')
-        return
+        return {'jobs': 0, 'lines': 0, 'pictures': 0, 'errors': []}
     jobs = collections.OrderedDict()
     frames = set()
     stops = collections.Counter()
@@ -54,9 +56,12 @@ def report(out):
         elif r['ev'] == 'end':
             j['end'] = f"{r['why']} {r.get('seconds')} s"
     for k, j in jobs.items():
+        if brief and not (j['errors'] and not j['error'].startswith('ignored')):
+            continue
         print(f"{k:40} steps {j['shots']:5}  frames {len(j['frames']):4}  skip {j['skip']:3}  menus {j['menus']:3}  "
               f"{j['stop'] or ''}  {('error: ' + j['error']) if j['errors'] else ''}  [{j['end']}]")
-    print(f'jobs {len(jobs)}, distinct frames {len(frames)}, stops: {dict(stops)}')
+    if not brief:
+        print(f'jobs {len(jobs)}, distinct frames {len(frames)}, stops: {dict(stops)}')
     steps = sum(j['shots'] for j in jobs.values())
     secs = sum(r.get('seconds') or 0 for r in recs if r['ev'] == 'end')
     moving = sum(1 for r in recs if r['ev'] == 'shot' and r.get('anim'))
@@ -75,12 +80,14 @@ def report(out):
     for r in recs:
         if r['ev'] == 'end' and r.get('prof'):
             prof.update(r['prof'])
-    if prof['frames']:
+    if prof['frames'] and not brief:
         rest = secs - prof['draw'] - prof['shot'] - prof['png'] - prof['save']
         print(f"time in jobs {secs:.0f} s: drawing {prof['frames']:.0f} frames {prof['draw']:.0f} s, "
               f"{prof['shots']:.0f} screenshots {prof['shot']:.0f} s ({prof['known']:.0f} of them pictures this "
               f"engine had saved, no PNG), PNG {prof['png']:.0f} s for {prof['encoded']:.0f} pictures, "
               f"writing {prof['save']:.0f} s, the rest {rest:.0f} s")
+    return {'jobs': len(jobs), 'lines': steps, 'pictures': len(frames),
+            'errors': [k for k, j in jobs.items() if j['errors'] and not j['error'].startswith('ignored')]}
 
 
 def forget(out, ids):

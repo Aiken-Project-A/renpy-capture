@@ -21,7 +21,7 @@ class PrunTest(unittest.TestCase):
             json.dump({'jobs': [{'id': f'j{i}', 'label': 'start'} for i in range(4)]}, f)
         self.out = os.path.join(self.tmp.name, 'out')
         self.calls = []
-        self.patches = [mock.patch.object(runner, 'setup', lambda *a: self.calls.append('setup')),
+        self.patches = [mock.patch.object(runner, 'setup', lambda *a, **k: self.calls.append('setup')),
                         mock.patch.object(runner.sdkmod, 'ensure', lambda v: self.calls.append('ensure')),
                         mock.patch.object(runner, 'report', lambda out: None),
                         mock.patch.object(runner.time, 'sleep', lambda s: None)]

@@ -92,39 +92,56 @@ one:
 - `xvfb` — a virtual X server (`Xvfb`): nothing appears on your desktop, the engine renders in software (Mesa);
 - `window` — your own desktop: the game window is visible while the capture runs; leave it alone.
 
-For `gaps` and `export` on games that ship only compiled scripts (`.rpyc`), get
-[unrpyc](https://github.com/CensoredUsername/unrpyc) and set `RENPY_CAPTURE_UNRPYC` to its folder; the capture itself
-does not need it.
-
 ```sh
 pipx install git+https://github.com/Aiken-Project-A/renpy-capture
 # or, inside a virtual environment: pip install git+https://github.com/Aiken-Project-A/renpy-capture
 
+renpy-capture capture ~/Games/MyGame work/
+xdg-open work/export/index.html
+```
+
+`capture` does the whole job in one work folder: a starter config (`work/config.json`, yours to edit), the launch
+folder (it downloads the game's Ren'Py SDK once), every option of every menu, a check for scene lines that no branch
+reached, and the pages. A line shows how far it is while it runs; at the end it says what to open. Run the same
+command again to go on after an interruption, or after editing the config to guide the capture.
+
+Worth knowing: `--workers 4` runs four engines at once (with a GPU and memory to spare); `--fast` draws only the
+frames where the capture decides, up to twice as fast on animated games, with animations maybe caught in another
+phase; `--renpy-version` when the game does not tell its version. `renpy-capture capture --help` lists every option.
+SDKs are kept in `~/.cache/renpy-capture/sdk` (`RENPY_CAPTURE_SDK` puts them elsewhere).
+
+For games that ship only compiled scripts (`.rpyc`), the check for unreached lines and the scene names of the page
+need [unrpyc](https://github.com/CensoredUsername/unrpyc): set `RENPY_CAPTURE_UNRPYC` to its folder. The capture
+itself does not need it.
+
+### A translation
+
+```sh
+renpy-capture capture ~/Games/MyGame work/ --text                      # the original, with its dialogue window
+renpy-capture capture ~/Games/MyGame work/ --text --language russian   # the translation, from game/tl/russian
+xdg-open work/export-text-russian/index.html
+```
+
+The second page shows every line of the original with its translation under it and both frames side by side: text
+that does not fit the window, a font without the glyphs. Without `--text` the frames show the scenes alone, the same
+to the byte in both languages, and `renpy-capture compare work/out work/out-russian` checks that the translation
+takes the game the same way.
+
+### Step by step
+
+What `capture` does, command by command, for finer control:
+
+```sh
 renpy-capture init    ~/Games/MyGame config.json          # a starter config: one job from `start`
 renpy-capture setup   ~/Games/MyGame run/                 # the launch folder (downloads the SDK once)
 renpy-capture explore run/ config.json out/               # capture, taking every menu option
 renpy-capture gaps    ~/Games/MyGame config.json out/     # scene/show lines no job has reached
-renpy-capture export  out/ ~/Games/MyGame export/         # shots.tsv + index.html
-xdg-open export/index.html
+renpy-capture export  out/ ~/Games/MyGame export/         # the pages and the table
 ```
 
-With a GPU and enough memory, `explore --workers 4` runs four engines at once. `renpy-capture <command> --help`
-describes every option. SDKs are kept in `~/.cache/renpy-capture/sdk` (`RENPY_CAPTURE_SDK` puts them elsewhere).
-
-`--fast` draws only the frames where the capture decides, not every frame of a settling scene: on animated games it
-can be up to twice as fast. The scenes and the course of the game stay the same, but an animation can be caught in
-another phase than without `--fast`, so compare runs made the same way. `report` shows where the time went.
-
-For a translation, capture the game in it, compare with the original (the text is not part of a frame without
-`--text`, so the scenes of both languages are the same to the byte), then put both side by side on one page:
-
-```sh
-renpy-capture run run/ config.json out-ru/ --language russian          # scenes, lines from game/tl/russian
-renpy-capture compare out/ out-ru/                                     # the same course, frame for frame
-renpy-capture run run/ config.json out-text/ --text                    # the game's window and menus too,
-renpy-capture run run/ config.json out-ru-text/ --language russian --text   # in both languages
-renpy-capture export out-text/ ~/Games/MyGame export-ru/ --beside out-ru-text/   # the two frames and lines
-```
+`report` sums a capture up, `compare` checks two captures against each other, `run` and `prun` capture the jobs of a
+config as they are (on one engine or several), `forget` drops jobs to capture them again; `--help` after any command
+describes it.
 
 ## What you get
 

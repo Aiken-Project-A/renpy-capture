@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Easier to use
+- `renpy-capture capture GAME WORKDIR` does the usual way in one command: a starter config, the launch folder, every
+  branch, the check for unreached lines and the pages, all in one work folder, ending with what to open. Run it again
+  to go on. With `--language` the translation's page shows the original beside it.
+- A line tells how far a capture is while it runs (jobs done, lines captured, the job under way).
+- Between rounds of `explore` one line sums the round up; warnings and failed jobs still show, the whole table is left
+  to `report`. `prun` no longer prints a report for every batch of every engine.
+- `--help` explains every argument, and the main help starts with the usual way.
+- `explore` says when branches were left out because the config reached `--limit` jobs.
+
 ### For translators
 - `--language NAME` (config `language`) captures a translation: the engine starts in `game/tl/NAME`. A translated
   line keeps the file and line of the line it translates (`tl_file`, `tl_line` say where its text is), so `compare`

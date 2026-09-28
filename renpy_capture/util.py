@@ -28,3 +28,8 @@ def script_path(fn):
     an archive; both become the path of the .rpy source inside game/ (`script.rpy`)."""
     fn = re.sub(r'^game/', '', fn or '')
     return fn[:-1] if fn.endswith(('.rpyc', '.rpymc')) else fn
+
+
+def plural(n, word, many=None):
+    """"1 job", "3 jobs" ("1 branch", "2 branches" with ``many``): for the lines a person reads."""
+    return f'{n} {word if n == 1 else many or word + "s"}'

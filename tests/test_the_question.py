@@ -15,7 +15,7 @@ import shutil
 import tempfile
 import unittest
 
-from renpy_capture import analysis, export, runner, sdk
+from renpy_capture import analysis, export, runner, sdk, workflow
 from renpy_capture.util import read_jsonl, read_text
 
 from .rpatool import pack_game_dir
@@ -39,10 +39,10 @@ class TheQuestion(unittest.TestCase):
             if kind == 'packed':
                 pack_game_dir(os.path.join(game, 'game'))
             cfg = os.path.join(cls.tmp, kind, 'config.json')
-            runner.init_config(game, cfg)
             rundir = os.path.join(cls.tmp, kind, 'run')
             out = os.path.join(cls.tmp, kind, 'out')
             with contextlib.redirect_stdout(io.StringIO()):
+                runner.init_config(game, cfg)
                 runner.setup(game, rundir, version=VERSION)
                 runner.explore(rundir, cfg, out, display=DISPLAY, gpu=GPU)
             cls.out[kind] = (game, cfg, rundir, out)
@@ -171,6 +171,28 @@ class TheQuestion(unittest.TestCase):
         self.assertIn('beside them: russian', page)
         self.assertIn(html.escape(says[0]['beside_what']), page)
         self.assertNotIn('took another way', page)
+
+    def test_capture_in_one_command(self):
+        """`capture` does the usual way in one work folder and says what to open; the translation captured into the
+        same folder gets its page beside the original's; a second run goes on (nothing left to do)."""
+        game = os.path.join(self.tmp, 'one', 'the_question')
+        shutil.copytree(os.path.join(self.sdk, 'the_question'), game, ignore=shutil.ignore_patterns('saves', 'cache'))
+        work = os.path.join(self.tmp, 'one', 'work')
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            p = workflow.capture(game, work, version=VERSION, display=DISPLAY, gpu=GPU)
+            ru = workflow.capture(game, work, display=DISPLAY, gpu=GPU, language='russian')   # the version is kept
+        said = buf.getvalue()
+        for name in ('index.html', 'choices.html', 'shots.tsv'):
+            self.assertTrue(os.path.exists(os.path.join(p['export'], name)), name)
+            self.assertIn(os.path.join(p['export'], name), said)
+        self.assertIn('every menu option taken', said)
+        self.assertIn('Every scene line was reached', said)
+        self.assertIn('beside them: russian', read_text(os.path.join(ru['export'], 'index.html')))
+        lines = len([r for r in read_jsonl(os.path.join(p['out'], 'log.jsonl')) if r['ev'] == 'shot'])
+        with contextlib.redirect_stdout(io.StringIO()):
+            workflow.capture(game, work, display=DISPLAY, gpu=GPU)
+        self.assertEqual(lines, len([r for r in read_jsonl(os.path.join(p['out'], 'log.jsonl')) if r['ev'] == 'shot']))
 
     def test_a_language_the_game_does_not_have(self):
         game, cfg, rundir, out = self.out['loose']

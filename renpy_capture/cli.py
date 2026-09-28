@@ -5,10 +5,24 @@ import sys
 
 from . import __version__
 
+EPILOG = """\
+The usual way, one command, everything in one work folder:
+  renpy-capture capture ~/Games/MyGame work/      then open work/export/index.html
+  run it again to go on after an interruption or after editing work/config.json
+
+Step by step (what capture does): init, setup, explore, gaps, export.
+Checking a capture: report, gaps, compare.  Finer work: run, prun, forget, sdk.
+`renpy-capture <command> --help` describes a command."""
+
+GAME = "the game: its folder (the one with game/ inside) or game/ itself"
+CONFIG = 'the config file (JSON): the jobs and how to capture them; `init` writes a starter one'
+RUNDIR = 'the launch folder made by `setup`: links to the game plus the capture script'
+OUT = 'the capture folder: every picture (frames/) and the log of every line (log.jsonl)'
+
 
 def main(argv=None):
     ap = argparse.ArgumentParser(
-        prog='renpy-capture',
+        prog='renpy-capture', formatter_class=argparse.RawDescriptionHelpFormatter, epilog=EPILOG,
         description="Screenshots of every line of a Ren'Py game, taken by the game's own engine "
                     '(the official SDK of the same version), with the script line of each one.')
     ap.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
@@ -31,68 +45,82 @@ def main(argv=None):
                        help="keep the game's dialogue window, speech bubbles and menus in the frames (to check how "
                             'the text fits); without it frames show the scene alone')
 
+    p = sub.add_parser('capture', help='the usual way in one command: every branch of a game, captured into a work '
+                                       'folder, and the pages to read it')
+    p.add_argument('game', help=GAME)
+    p.add_argument('workdir', help='a folder for everything: config.json, the launch folder run/, the capture out/ '
+                                   'and the pages export/ (a translation or --text get out-…/export-… of their own)')
+    p.add_argument('--workers', type=int, default=1,
+                   help='engines at once (default 1; 4 on a machine with a GPU and memory to spare)')
+    p.add_argument('--renpy-version', help="the Ren'Py version, when the game does not tell it")
+    p.add_argument('--sdk', help="use this unpacked Ren'Py SDK instead of downloading one")
+    p.add_argument('--exclude', help='regex of files in game/ to leave out (e.g. a machine-translation mod)')
+    p.add_argument('--rounds', type=int, default=10, help='rounds of exploring new branches (default 10)')
+    p.add_argument('--limit', type=int, default=600, help='at most this many jobs in the config (default 600)')
+    engine_opts(p)
+
     p = sub.add_parser('init', help='write a starter config for a game')
-    p.add_argument('game')
-    p.add_argument('config')
+    p.add_argument('game', help=GAME)
+    p.add_argument('config', help='where to write it')
 
     p = sub.add_parser('sdk', help="download the Ren'Py SDK a game needs (done by setup/run when missing)")
-    p.add_argument('game', nargs='?', help='the game (its Ren\'Py version picks the SDK)')
+    p.add_argument('game', nargs='?', help="the game (its Ren'Py version picks the SDK)")
     p.add_argument('--renpy-version', help="the Ren'Py version, instead of a game or when the game does not tell it")
 
     p = sub.add_parser('setup', help='make a launch folder: links to the game plus the capture script')
-    p.add_argument('game')
-    p.add_argument('rundir')
+    p.add_argument('game', help=GAME)
+    p.add_argument('rundir', help='the launch folder to make (the game itself is never changed)')
     p.add_argument('--renpy-version', help="the Ren'Py version, when the game does not tell it")
     p.add_argument('--sdk', help="use this unpacked Ren'Py SDK instead of downloading one")
     p.add_argument('--exclude', help='regex of files in game/ to leave out (e.g. a machine-translation mod)')
 
     p = sub.add_parser('run', help='run the jobs of a config in one engine')
-    p.add_argument('rundir')
-    p.add_argument('config')
-    p.add_argument('out')
+    p.add_argument('rundir', help=RUNDIR)
+    p.add_argument('config', help=CONFIG)
+    p.add_argument('out', help=OUT)
     p.add_argument('--stall', type=float, default=180, help='seconds without progress before a job counts as hung')
     engine_opts(p)
 
     p = sub.add_parser('prun', help='run the jobs on several engines at once')
-    p.add_argument('rundir')
-    p.add_argument('config')
-    p.add_argument('out')
-    p.add_argument('--workers', type=int, default=4)
+    p.add_argument('rundir', help=RUNDIR)
+    p.add_argument('config', help=CONFIG)
+    p.add_argument('out', help=OUT)
+    p.add_argument('--workers', type=int, default=4, help='engines at once (default 4)')
     p.add_argument('--batch', type=int, default=8, help='jobs per engine launch')
     engine_opts(p)
 
     p = sub.add_parser('explore', help='run, then add a job for every menu option not taken yet, until none is left')
-    p.add_argument('rundir')
-    p.add_argument('config')
-    p.add_argument('out')
-    p.add_argument('--rounds', type=int, default=10)
+    p.add_argument('rundir', help=RUNDIR)
+    p.add_argument('config', help=CONFIG + '; the new jobs are added to it')
+    p.add_argument('out', help=OUT)
+    p.add_argument('--rounds', type=int, default=10, help='rounds of exploring new branches (default 10)')
     p.add_argument('--limit', type=int, default=600, help='at most this many jobs in the config')
-    p.add_argument('--workers', type=int, default=1)
-    p.add_argument('--batch', type=int, default=8)
+    p.add_argument('--workers', type=int, default=1, help='engines at once (default 1)')
+    p.add_argument('--batch', type=int, default=8, help='jobs per engine launch, with --workers')
     engine_opts(p)
 
     p = sub.add_parser('report', help='summary of a capture: jobs, steps, frames, stops, errors')
-    p.add_argument('out')
+    p.add_argument('out', help=OUT)
 
     p = sub.add_parser('gaps', help='scene/show lines of the scripts that no job has reached')
-    p.add_argument('game')
-    p.add_argument('config')
-    p.add_argument('out')
+    p.add_argument('game', help=GAME)
+    p.add_argument('config', help=CONFIG)
+    p.add_argument('out', help=OUT)
 
     p = sub.add_parser('compare', help='check that two runs of the same jobs match (exit code 1 if not)')
-    p.add_argument('reference')
-    p.add_argument('out')
+    p.add_argument('reference', help='the capture folder to compare with')
+    p.add_argument('out', help='the capture folder to check')
     p.add_argument('--states-only', action='store_true',
                    help='compare what is on screen at every line, not the pixels (runs on different GPUs)')
 
     p = sub.add_parser('forget', help='drop jobs from a capture before capturing them again')
-    p.add_argument('out')
-    p.add_argument('jobs', nargs='+')
+    p.add_argument('out', help=OUT)
+    p.add_argument('jobs', nargs='+', help='the ids of the jobs to drop')
 
     p = sub.add_parser('export', help='shots.tsv + index.html (every line with its frame), optionally CG pictures')
-    p.add_argument('out')
-    p.add_argument('game')
-    p.add_argument('dest')
+    p.add_argument('out', help=OUT)
+    p.add_argument('game', help=GAME)
+    p.add_argument('dest', help='the folder to write the pages and the table into')
     p.add_argument('--options', help='JSON file with export options (cg, crop, effects…; see docs/config.md)')
     p.add_argument('--no-page', action='store_true', help='do not write index.html')
     p.add_argument('--beside', help='another capture of the same jobs (a translation, captured with --language): its '
@@ -108,7 +136,12 @@ def main(argv=None):
 
 
 def dispatch(a):
-    if a.cmd == 'init':
+    if a.cmd == 'capture':
+        from .workflow import capture
+        capture(a.game, a.workdir, workers=a.workers, version=a.renpy_version, sdk_dir=a.sdk, exclude=a.exclude,
+                rounds=a.rounds, limit=a.limit, language=a.language, text=a.text, fast=a.fast, timewarp=a.timewarp,
+                display=a.display, gpu=a.gpu, screen=a.screen)
+    elif a.cmd == 'init':
         from .runner import init_config
         init_config(a.game, a.config)
     elif a.cmd == 'sdk':

@@ -15,7 +15,7 @@ import traceback
 from . import sdk as sdkmod
 from .analysis import report
 from .game import MODS, engine_hint, engine_version, game_dir
-from .util import read_bytes, read_json, read_jsonl, read_text
+from .util import plural, read_bytes, read_json, read_jsonl, read_text
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CAPTURE_RPY = os.path.join(HERE, 'capture.rpy')
@@ -29,6 +29,12 @@ STARTER = {'jobs': [{'id': 'start', 'label': 'start'}], 'ui': '.*', 'settle': 0.
            'max_steps': 3000, 'loop_limit': 40}
 
 
+def _near(path):
+    """A path as a person reads it: relative when it is under the current folder."""
+    rel = os.path.relpath(path)
+    return path if rel.startswith('..') else rel
+
+
 def _info(rundir):
     p = os.path.join(rundir, RUN_INFO)
     if not os.path.exists(p):
@@ -36,7 +42,7 @@ def _info(rundir):
     return read_json(p)
 
 
-def setup(game, rundir, version=None, sdk_dir=None, exclude=None):
+def setup(game, rundir, version=None, sdk_dir=None, exclude=None, quiet=False):
     """The launch folder: game/ made of links to the game's files plus capture.rpy, its own saves, cache and HOME.
     The game itself is never changed."""
     g = game_dir(game)
@@ -63,7 +69,8 @@ def setup(game, rundir, version=None, sdk_dir=None, exclude=None):
     with open(os.path.join(rundir, RUN_INFO), 'w', encoding='utf-8') as f:
         json.dump(info, f, ensure_ascii=False, indent=1)
     link_game(info, rundir)
-    print(f"launch folder: {rundir} (Ren'Py {version or 'from ' + sdk_dir})")
+    if not quiet:
+        print(f"launch folder: {_near(rundir)} (Ren'Py {version or 'from ' + sdk_dir})")
 
 
 COMPILED = {'.rpyc': '.rpy', '.rpymc': '.rpym'}
@@ -139,7 +146,7 @@ def init_config(game, path):
         raise SystemExit(f'{path} exists')
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(STARTER, f, ensure_ascii=False, indent=1)
-    print(f'config: {path}')
+    print(f'config: {_near(path)} (a starter one: yours to edit, see docs/config.md)')
 
 
 def kill_group(p):
@@ -301,6 +308,80 @@ def current_job(out):
     return cur or '?'
 
 
+class Progress:
+    """How far a capture is, in one line: jobs done out of all, lines captured, the job under way. On a terminal the
+    line is rewritten in place every few seconds; elsewhere (a log file, CI) it is printed every half minute. Reads
+    the logs as they grow: the capture's own and, with several engines, those of the batches under way (a batch's
+    records also reach the capture's log when it ends, so a job already marked done there is not counted twice)."""
+
+    def __init__(self, out, total):
+        self.out, self.total = out, total
+        self.tty = sys.stdout.isatty()
+        self.pos, self.jobs, self.cur = {}, {}, {}      # per log: bytes read, lines per job, the job under way
+        self.width, self.last = 0, time.time()
+
+    def _scan(self, path):
+        try:
+            size = os.path.getsize(path)
+        except OSError:                             # a batch folder removed: its jobs are in the capture's log now
+            for d in (self.pos, self.jobs, self.cur):
+                d.pop(path, None)
+            return
+        if size < self.pos.get(path, 0):            # a new batch in the same folder: start over
+            self.pos[path], self.jobs[path] = 0, {}
+        with open(path, 'rb') as f:
+            f.seek(self.pos.get(path, 0))
+            data = f.read()
+        end = data.rfind(b'\n') + 1                 # a record still being written waits for the next look
+        self.pos[path] = self.pos.get(path, 0) + end
+        counts = self.jobs.setdefault(path, {})
+        for line in data[:end].splitlines():
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            if r.get('ev') == 'shot':
+                counts[r.get('job')] = counts.get(r.get('job'), 0) + 1
+            elif r.get('ev') == 'start':
+                self.cur[path] = r.get('job')
+            elif r.get('ev') == 'end':
+                self.cur[path] = None
+
+    def line(self):
+        main = os.path.join(self.out, 'log.jsonl')
+        work = os.path.join(self.out, 'work')
+        logs = [main] + sorted(os.path.join(work, d, 'log.jsonl') for d in
+                               (os.listdir(work) if os.path.isdir(work) else ()) if d.startswith('w'))
+        for p in logs + [p for p in list(self.pos) if p not in logs]:
+            self._scan(p)
+        dp = os.path.join(self.out, 'done.txt')
+        done = set(read_text(dp).split()) if os.path.exists(dp) else set()
+        lines = sum(self.jobs.get(main, {}).values())
+        lines += sum(n for p, c in self.jobs.items() if p != main for j, n in c.items() if j not in done)
+        now = [j for p, j in self.cur.items() if j and j not in done]
+        what = (f'now {now[0]}' if len(now) == 1 else f'{len(now)} engines at work' if now else
+                'finishing' if len(done) >= self.total else 'starting')
+        return f'  {min(len(done), self.total)} of {plural(self.total, "job")} done, {plural(lines, "line")}, {what}'
+
+    def update(self):
+        if not self.tty and time.time() - self.last < 30:
+            return
+        self.last = time.time()
+        text = self.line()
+        if self.tty:
+            sys.stdout.write('\r' + text.ljust(self.width))
+            self.width = len(text)
+        else:
+            sys.stdout.write(text + '\n')
+        sys.stdout.flush()
+
+    def clear(self):
+        if self.tty and self.width:
+            sys.stdout.write('\r' + ' ' * self.width + '\r')
+            sys.stdout.flush()
+            self.width = 0
+
+
 def _parse_size(v):
     if not v:
         return SCREEN
@@ -313,10 +394,11 @@ def _parse_size(v):
 
 
 def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, screen=None, fast=False,
-        language=None, text=False):
+        language=None, text=False, quiet=False, progress=True):
     """Run the jobs of a config in one engine. A watchdog restarts the engine when the log has not grown for
     ``stall`` seconds (a hung job is recorded and skipped); an interrupted run continues from the first job that
-    is not done."""
+    is not done. A line tells how far it is while it runs (``progress``); ``quiet`` leaves the report at the end to
+    the caller."""
     info = _info(rundir)
     link_game(info, rundir)
     cfg = read_json(cfg_path)
@@ -382,6 +464,7 @@ def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, 
             os.remove(p)
     log, done = os.path.join(out, 'log.jsonl'), os.path.join(out, 'done.txt')
     ids = [j['id'] for j in cfg['jobs']]
+    bar = Progress(out, len(ids)) if progress else None
     rc = None
     while True:
         hung = None
@@ -391,6 +474,8 @@ def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, 
                 size, since = -1, time.time()
                 while p.poll() is None:
                     time.sleep(2)
+                    if bar:
+                        bar.update()
                     cur = os.path.getsize(log) if os.path.exists(log) else 0
                     if cur != size:
                         size, since = cur, time.time()
@@ -405,6 +490,8 @@ def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, 
                 disp.cleanup()
                 sweep(sdk_dir, rundir)
             rc = p.returncode
+        if bar:
+            bar.clear()
         if hung is None:
             break
         if hung == '?':
@@ -426,8 +513,10 @@ def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, 
     fatal = os.path.join(out, 'fatal.txt')
     if os.path.exists(fatal):
         print('engine: ' + read_text(fatal, errors='replace')[-2000:])
-    print(f'engine exit code: {rc}')
-    report(out)
+    if rc:
+        print(f'engine exit code: {rc}')
+    if not quiet:
+        report(out)
 
 
 def merge_jobs(src, out, ids, recs):
@@ -463,7 +552,7 @@ def healthy(recs):
 
 
 def prun(rundir, cfg_path, out, workers=4, timewarp=4.0, batch=8, display=None, gpu=None, screen=None, fast=False,
-         language=None, text=False):
+         language=None, text=False, quiet=False):
     """Jobs on several engines at once. A worker has its own launch folder (<rundir>-wN: links to the same game,
     its own saves and HOME) and its own display. It takes a batch of jobs from the common queue (up to ``batch``; the
     tail of the queue is shared evenly) and runs it in one engine, so the display and the game do not start again
@@ -494,7 +583,7 @@ def prun(rundir, cfg_path, out, workers=4, timewarp=4.0, batch=8, display=None, 
     def work(k):
         rd = f'{os.path.abspath(rundir).rstrip(os.sep)}-w{k}'
         with lock:                                  # workers follow the main folder (game, version, exclude)
-            setup(info['game'], rd, info.get('version'), info.get('sdk'), info.get('exclude'))
+            setup(info['game'], rd, info.get('version'), info.get('sdk'), info.get('exclude'), quiet=True)
         time.sleep(4 * k)                           # launches spread out: a dozen displays and GL contexts at once
         launch = 0                                  # leave some engine without a window ("Invalid window")
         while True:
@@ -512,7 +601,7 @@ def prun(rundir, cfg_path, out, workers=4, timewarp=4.0, batch=8, display=None, 
             with open(wcfg, 'w', encoding='utf-8') as f:
                 json.dump(dict(cfg, jobs=jobs), f, ensure_ascii=False)
             run(rd, wcfg, wout, timewarp, display=display, gpu=gpu, screen=screen, fast=fast, language=language,
-                text=text)
+                text=text, quiet=True, progress=False)
             lp = os.path.join(wout, 'log.jsonl')
             recs = read_jsonl(lp) if os.path.exists(lp) else []
             by = collections.defaultdict(list)
@@ -543,9 +632,14 @@ def prun(rundir, cfg_path, out, workers=4, timewarp=4.0, batch=8, display=None, 
     threads = [threading.Thread(target=worker, args=(k,)) for k in range(nworkers)]
     for t in threads:
         t.start()
+    bar = Progress(out, len(cfg['jobs']))
+    while any(t.is_alive() for t in threads):
+        time.sleep(2)
+        bar.update()
+    bar.clear()
     for t in threads:
         t.join()
-    if os.path.exists(os.path.join(out, 'log.jsonl')):
+    if os.path.exists(os.path.join(out, 'log.jsonl')) and not quiet:
         report(out)
     if failed:                                      # the other workers went on; the stopped one's batch is not done
         k, e = failed[0]
@@ -557,14 +651,18 @@ def explore(rundir, cfg_path, out, rounds=10, timewarp=4.0, limit=600, workers=1
             screen=None, fast=False, language=None, text=False):
     """Rounds until the branches run out: every option of every menu met (file:line) is taken at least once. A new
     job repeats the choices made before that menu in a finished job, takes an option not taken yet, and then the
-    first options. New jobs are added to the config (id "<job>~<choices>")."""
+    first options. New jobs are added to the config (id "<job>~<choices>"). Returns whether every branch was taken
+    (not when the rounds ran out, or when branches were left out because the config reached ``limit`` jobs)."""
     cfg = read_json(cfg_path)
+    dropped = 0
     for rnd in range(rounds):
         if workers > 1:
-            prun(rundir, cfg_path, out, workers, timewarp, batch, display, gpu, screen, fast, language, text)
+            prun(rundir, cfg_path, out, workers, timewarp, batch, display, gpu, screen, fast, language, text,
+                 quiet=True)
         else:
             run(rundir, cfg_path, out, timewarp, display=display, gpu=gpu, screen=screen, fast=fast, language=language,
-                text=text)
+                text=text, quiet=True)
+        stats = report(out, brief=True)             # warnings and failed jobs only; `report` has the whole table
         seen, menus = set(), collections.defaultdict(list)
         looped = set()                              # stopped as a loop: a mini-game gauge moved by screen timers,
         for r in read_jsonl(os.path.join(out, 'log.jsonl')):           # retried with the timers running
@@ -588,11 +686,17 @@ def explore(rundir, cfg_path, out, rounds=10, timewarp=4.0, limit=600, workers=1
                         continue
                     seen.add((f, ln, j))
                     nid = f"{job['id'].split('~')[0]}~{'.'.join(map(str, path + [j]))}"
-                    if nid not in ids and len(cfg['jobs']) + len(new) < limit:
+                    if nid in ids:
+                        continue
+                    if len(cfg['jobs']) + len(new) < limit:
                         new.append(dict(job, id=nid, choices=path + [j]))
                         ids.add(nid)
+                    else:
+                        dropped += 1
                 path.append(k)
-        print(f'round {rnd + 1}: new branches {len(new)}')
+        print(f"round {rnd + 1}: {plural(stats['jobs'], 'job')}, {plural(stats['lines'], 'line')}, "
+              f"{plural(stats['pictures'], 'picture')}; "
+              + (f"{plural(len(new), 'new branch', 'new branches')} to take" if new else 'no branch left to take'))
         if not new:
             break
         cfg['jobs'] += new
@@ -600,3 +704,7 @@ def explore(rundir, cfg_path, out, rounds=10, timewarp=4.0, limit=600, workers=1
             json.dump(cfg, f, ensure_ascii=False, indent=1)
     else:
         print(f'stopped after {rounds} rounds; run explore again to go on', file=sys.stderr)
+        return False
+    if dropped:
+        print(f'{dropped} branches left out: the config reached {limit} jobs (raise it with --limit)', file=sys.stderr)
+    return not dropped
