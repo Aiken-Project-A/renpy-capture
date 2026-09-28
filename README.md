@@ -24,7 +24,8 @@ See the whole result for The Question: https://aiken-project-a.github.io/renpy-c
 - **Translators.** A line in a spreadsheet does not tell who speaks, to whom, or what is on screen; here every line
   comes with its scene and its translation id. Capture the translation too (`--language russian`): every translated
   line of every branch in its scene, and `compare` with the original shows that the translation takes the game the
-  same way — in minutes instead of hours of clicking.
+  same way. With `--text` the frames keep the game's own dialogue window and menus: text that does not fit the
+  window, a font without the glyphs — in minutes instead of hours of clicking.
 - **Authors and testers.** Capture the game before and after a change: `compare` names the first line where a scene
   differs. `gaps` lists the scene and show lines that no path through the game reaches — a branch behind a flag that
   is never set.
@@ -110,6 +111,15 @@ describes every option. SDKs are kept in `~/.cache/renpy-capture/sdk` (`RENPY_CA
 `--fast` draws only the frames where the capture decides, not every frame of a settling scene: on animated games it
 can be up to twice as fast. The scenes and the course of the game stay the same, but an animation can be caught in
 another phase than without `--fast`, so compare runs made the same way. `report` shows where the time went.
+
+For a translation, capture the game in it and with its text in the frames, then compare with the original (the text
+is not part of a frame without `--text`, so the scenes of both languages are the same to the byte):
+
+```sh
+renpy-capture run run/ config.json out-ru/ --language russian          # scenes, lines from game/tl/russian
+renpy-capture compare out/ out-ru/                                     # the same course, frame for frame
+renpy-capture run run/ config.json out-ru-text/ --language russian --text   # the game's window and menus too
+```
 
 ## What you get
 

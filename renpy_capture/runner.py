@@ -311,7 +311,7 @@ def _parse_size(v):
 
 
 def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, screen=None, fast=False,
-        language=None):
+        language=None, text=False):
     """Run the jobs of a config in one engine. A watchdog restarts the engine when the log has not grown for
     ``stall`` seconds (a hung job is recorded and skipped); an interrupted run continues from the first job that
     is not done."""
@@ -331,7 +331,7 @@ def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, 
         egl = None
     disp = make_display(display, rundir, egl, _parse_size(screen or cfg.get('screen')))
     env = {'HOME': os.path.join(rundir, 'home'), 'SDL_AUDIODRIVER': 'dummy', 'RENPY_TIMEWARP': str(timewarp),
-           'RENPY_CAPTURE_FAST': '1' if fast else '0',
+           'RENPY_CAPTURE_FAST': '1' if fast else '0', 'RENPY_CAPTURE_TEXT': '1' if text else '0',
            'RENPY_SKIP_MAIN_MENU': '1', 'RENPY_SKIP_SPLASHSCREEN': '1',
            'RENPY_GL_VSYNC': '0',      # Ren'Py only slows itself down with vsync; a 60 Hz screen does not matter here
            'RENPY_CAPTURE_CONFIG': os.path.abspath(cfg_path), 'RENPY_CAPTURE_OUT': os.path.abspath(out),
@@ -461,7 +461,7 @@ def healthy(recs):
 
 
 def prun(rundir, cfg_path, out, workers=4, timewarp=4.0, batch=8, display=None, gpu=None, screen=None, fast=False,
-         language=None):
+         language=None, text=False):
     """Jobs on several engines at once. A worker has its own launch folder (<rundir>-wN: links to the same game,
     its own saves and HOME) and its own display. It takes a batch of jobs from the common queue (up to ``batch``; the
     tail of the queue is shared evenly) and runs it in one engine, so the display and the game do not start again
@@ -509,7 +509,8 @@ def prun(rundir, cfg_path, out, workers=4, timewarp=4.0, batch=8, display=None, 
             wcfg = os.path.join(wout, 'cfg.json')
             with open(wcfg, 'w', encoding='utf-8') as f:
                 json.dump(dict(cfg, jobs=jobs), f, ensure_ascii=False)
-            run(rd, wcfg, wout, timewarp, display=display, gpu=gpu, screen=screen, fast=fast, language=language)
+            run(rd, wcfg, wout, timewarp, display=display, gpu=gpu, screen=screen, fast=fast, language=language,
+                text=text)
             lp = os.path.join(wout, 'log.jsonl')
             recs = read_jsonl(lp) if os.path.exists(lp) else []
             by = collections.defaultdict(list)
@@ -551,16 +552,17 @@ def prun(rundir, cfg_path, out, workers=4, timewarp=4.0, batch=8, display=None, 
 
 
 def explore(rundir, cfg_path, out, rounds=10, timewarp=4.0, limit=600, workers=1, batch=8, display=None, gpu=None,
-            screen=None, fast=False, language=None):
+            screen=None, fast=False, language=None, text=False):
     """Rounds until the branches run out: every option of every menu met (file:line) is taken at least once. A new
     job repeats the choices made before that menu in a finished job, takes an option not taken yet, and then the
     first options. New jobs are added to the config (id "<job>~<choices>")."""
     cfg = read_json(cfg_path)
     for rnd in range(rounds):
         if workers > 1:
-            prun(rundir, cfg_path, out, workers, timewarp, batch, display, gpu, screen, fast, language)
+            prun(rundir, cfg_path, out, workers, timewarp, batch, display, gpu, screen, fast, language, text)
         else:
-            run(rundir, cfg_path, out, timewarp, display=display, gpu=gpu, screen=screen, fast=fast, language=language)
+            run(rundir, cfg_path, out, timewarp, display=display, gpu=gpu, screen=screen, fast=fast, language=language,
+                text=text)
         seen, menus = set(), collections.defaultdict(list)
         looped = set()                              # stopped as a loop: a mini-game gauge moved by screen timers,
         for r in read_jsonl(os.path.join(out, 'log.jsonl')):           # retried with the timers running

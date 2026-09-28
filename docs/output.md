@@ -38,7 +38,7 @@ Every record has `ev` (the kind) and `job`.
 | `cam` | The camera, when it is not at rest. |
 | `fx` | Effects running on this line but kept out of the frame (see `null_images`, `hide_tags`, `fx_screens`, `fx_files`). |
 | `frame` | The sha1 of the frame (`frames/<sha1>.png`); missing when `skip` is set. |
-| `same` | The scene has not changed since the previous capture; `frame` is the previous one. |
+| `same` | The scene has not changed since the previous capture; `frame` is the previous one (never with `text`, where every line is a frame of its own). |
 | `anim` | Captured while an endless animation was running (its phase is fixed by the frame clock). |
 | `peak` | Captured as a layer began to fade out. |
 | `skip` | The image files that made the frame skipped. |

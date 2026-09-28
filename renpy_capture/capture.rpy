@@ -16,6 +16,17 @@
 ## event.
 init offset = 999
 
+# The game's own dialogue window, speech bubbles and menus, kept before the stand-ins below replace them: screens are
+# defined at init -500 plus the offset (the game's at -500, these at 499), so this runs at 498. A capture with text
+# (`text`) puts them back at init 1000.
+init -501 python:
+    _rc_game_screens = dict((k, v) for k, v in renpy.display.screen.screens.items()
+                            if k[0] in ("say", "bubble", "choice"))
+
+init 1 python:
+    if _rc_P.text:
+        renpy.display.screen.screens.update(_rc_game_screens)
+
 screen say(who, what):
     text what id "what" size 1 color "#0000" outlines [] xpos -50
 
@@ -66,7 +77,7 @@ init python:
                      stubs=set(), timers=None, wait=None, wait_node=None, wait_t0=0.0, nulls=set(),
                      stop_labels=None, trans=False, fx_screens=None, fx_files=None, hidden_text={}, dt=0.0,
                      vclock=0.0, cap_anim=False, cap_peak=False, vis_prev=None, hidden_ids=set(), persist0=None,
-                     prof=None, raw_seen={}, fast=False, label_lines=None)
+                     prof=None, raw_seen={}, fast=False, label_lines=None, text=False)
 
     def _rc_rx(v):
         return _rc_re.compile(v) if v else None
@@ -76,8 +87,11 @@ init python:
         P.log.write(_rc_json.dumps(rec, ensure_ascii=False) + "\n")
         P.log.flush()
 
+    _RC_TEXT = ("say", "bubble", "choice", "nvl")    # with text (`text`) always drawn: the window, bubbles, menus
+
     def _rc_is_ui(name):
-        return _rc_P.ui is not None and _rc_P.ui.search(name) is not None
+        P = _rc_P
+        return P.ui is not None and P.ui.search(name) is not None and not (P.text and name in _RC_TEXT)
 
     def _rc_screen_name(d):
         n = getattr(d, "screen_name", None)
@@ -305,7 +319,7 @@ init python:
         if hit:
             rec["skip"] = hit
             P.last_key = P.last_frame = None
-        elif key == P.last_key and P.last_frame:
+        elif key == P.last_key and P.last_frame and not P.text:    # (the key knows the scene, not the text)
             rec["frame"] = P.last_frame
             rec["same"] = True
         else:
@@ -832,6 +846,7 @@ init python:
         renpy.game.preferences.transitions = 2 if _rc_P.trans else 0
         renpy.game.preferences.text_cps = 0
         renpy.game.preferences.afm_enable = False
+        _rc_P.text = bool(_rc_P.cfg.get("text") or _rc_os.environ.get("RENPY_CAPTURE_TEXT") == "1")   # (--text)
         # Frame clock (virtual_clock): game time is a frame counter, every drawn frame moves it by dt = timewarp/60 s.
         # The engine does not wait for real time (without power saving the loop does not block and draws one frame
         # after another, vsync is off), and an endless animation is always in the same phase when captured, so runs

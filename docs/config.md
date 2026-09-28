@@ -38,7 +38,7 @@ expressions and match anywhere in the string (`re.search`) unless stated otherwi
 
 | key | default | meaning |
 |---|---|---|
-| `ui` | none | Screens whose names match are interface: they are not drawn and get no events. Everything else on the `screens` layer counts as part of the scene. `.*` treats every screen as interface. The say, choice, quick menu, notify and skip-indicator screens are always replaced by invisible ones. |
+| `ui` | none | Screens whose names match are interface: they are not drawn and get no events. Everything else on the `screens` layer counts as part of the scene. `.*` treats every screen as interface. The say, choice, quick menu, notify and skip-indicator screens are always replaced by invisible ones (with `text`, the game's own dialogue window, speech bubbles, NVL page and menus are drawn). |
 | `null_screens` | none | Screens replaced by empty ones (map screens whose logic fails without the state of earlier scenes). |
 | `skip` | `[]` | Regexes on image files: a frame showing a matching file is not written (the record gets `skip`). |
 | `drop` | none | A regex on image files that are drawn fully transparent. |
@@ -62,6 +62,7 @@ expressions and match anywhere in the string (`re.search`) unless stated otherwi
 | `trans_max` | 8 | The longest wait for a transition, in seconds. |
 | `instant_camera` | `true` | Camera moves (`camera:` with ATL) jump to their final position. |
 | `virtual_clock` | `true` | Game time advances by `timewarp/60` s per drawn frame instead of following the wall clock: runs are repeatable to the byte. |
+| `text` | `false` | Keep the game's own dialogue window, speech bubbles, NVL page and menus in the frames (the same as `--text`): every line and menu gets a frame of its own, to check how a translation fits the window and whether the font has its glyphs. Without it a frame shows the scene alone. |
 | `fast` | `false` | Skip the frames a scene draws while it settles; only the frames where the capture decides are drawn (the same as `--fast`). The same scenes and course of the game, but a motion that stops between two drawn frames is seen later, so later animations can be caught in another phase than without it. Jobs that let screen timers run (`ui_timers`, `wait_menus`) keep every frame. Repeatable to the byte among runs with `fast`. |
 
 ## When a job ends

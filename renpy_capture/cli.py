@@ -27,6 +27,9 @@ def main(argv=None):
                             'games, but animations may be caught in another phase than without it')
         p.add_argument('--language', help="capture a translation: the language as its folder game/tl/<language> is "
                                           "named (default: the game's own language)")
+        p.add_argument('--text', action='store_true',
+                       help="keep the game's dialogue window, speech bubbles and menus in the frames (to check how "
+                            'the text fits); without it frames show the scene alone')
 
     p = sub.add_parser('init', help='write a starter config for a game')
     p.add_argument('game')
@@ -119,15 +122,15 @@ def dispatch(a):
     elif a.cmd == 'run':
         from .runner import run
         run(a.rundir, a.config, a.out, a.timewarp, a.stall, a.display, a.gpu, a.screen, fast=a.fast,
-            language=a.language)
+            language=a.language, text=a.text)
     elif a.cmd == 'prun':
         from .runner import prun
         prun(a.rundir, a.config, a.out, a.workers, a.timewarp, a.batch, a.display, a.gpu, a.screen, fast=a.fast,
-             language=a.language)
+             language=a.language, text=a.text)
     elif a.cmd == 'explore':
         from .runner import explore
         explore(a.rundir, a.config, a.out, a.rounds, a.timewarp, a.limit, a.workers, a.batch, a.display, a.gpu,
-                a.screen, fast=a.fast, language=a.language)
+                a.screen, fast=a.fast, language=a.language, text=a.text)
     elif a.cmd == 'report':
         from .analysis import report
         report(a.out)

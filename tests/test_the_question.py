@@ -125,6 +125,25 @@ class TheQuestion(unittest.TestCase):
                 self.assertRegex(b['what'], '[А-Яа-я]')
         self.assertGreater(says, 50)
 
+    def test_text_keeps_the_dialogue_window_and_menus(self):
+        """With text the game's own window and menus are in the frames: every line and every menu gets a frame of its
+        own, different from the frame of the scene alone, and a second run is identical to the byte."""
+        game, cfg, rundir, out = self.out['loose']
+        text, again = out + '-text', out + '-text-again'
+        with contextlib.redirect_stdout(io.StringIO()):
+            runner.run(rundir, cfg, text, display=DISPLAY, gpu=GPU, text=True)
+            runner.run(rundir, cfg, again, display=DISPLAY, gpu=GPU, text=True)
+        self.compare(text, again)
+        plain = {(r['job'], r['seq']): r for r in self.records('loose') if r['ev'] == 'shot'}
+        shots = [r for r in read_jsonl(os.path.join(text, 'log.jsonl')) if r['ev'] == 'shot']
+        worded = [r for r in shots if r.get('what') or r.get('menu')]
+        self.assertGreater(len(worded), 50)
+        for r in worded:
+            self.assertNotIn('same', r)
+            self.assertNotEqual(r['frame'], plain[r['job'], r['seq']]['frame'], r)
+        lines = {(r.get('who'), r['what']) for r in shots if r.get('what')}
+        self.assertGreaterEqual(len({r['frame'] for r in shots}), len(lines))
+
     def test_a_language_the_game_does_not_have(self):
         game, cfg, rundir, out = self.out['loose']
         with self.assertRaises(SystemExit):
