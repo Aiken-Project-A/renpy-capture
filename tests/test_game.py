@@ -52,7 +52,8 @@ class GameTest(unittest.TestCase):
         self.assertIn(runner.RPY_NAME, names)
         self.assertFalse([n for n in names if 'translator3000' in n.lower()])
         self.assertTrue(os.path.islink(os.path.join(run, 'game', 'script.rpy')))
-        self.assertEqual(json.load(open(os.path.join(run, runner.RUN_INFO)))['version'], '8.2.3')
+        with open(os.path.join(run, runner.RUN_INFO), encoding='utf-8') as f:
+            self.assertEqual(json.load(f)['version'], '8.2.3')
         with open(os.path.join(run, 'game', 'cache', 'bytecode-39.rpyb'), 'wb') as f:
             f.write(b'kept')
         with open(os.path.join(self.root, 'game', 'new.rpy'), 'w') as f:
@@ -64,6 +65,44 @@ class GameTest(unittest.TestCase):
     def test_launch_folder_is_not_the_game(self):
         with self.assertRaises(SystemExit):
             runner.setup(self.root, self.root)
+
+    def test_what_the_engine_compiles_stays_in_the_launch_folder(self):
+        g = os.path.join(self.root, 'game')
+        os.makedirs(os.path.join(g, 'scripts'))
+        with open(os.path.join(g, 'scripts', 'day1.rpy'), 'w') as f:
+            f.write('label day1:\n    return\n')
+        with open(os.path.join(g, 'shipped.rpy'), 'w') as f:
+            f.write('label shipped:\n    return\n')
+        with open(os.path.join(g, 'shipped.rpyc'), 'wb') as f:      # compiled by the author: the engine compiles
+            f.write(b'rpyc')                                        # its own from the source instead
+        run = os.path.join(self.tmp.name, 'run')
+        rg = os.path.join(run, 'game')
+        runner.setup(self.root, run)
+        self.assertFalse(os.path.islink(os.path.join(rg, 'scripts')))          # a real folder with links inside
+        self.assertTrue(os.path.islink(os.path.join(rg, 'scripts', 'day1.rpy')))
+        self.assertFalse(os.path.lexists(os.path.join(rg, 'shipped.rpyc')))
+        compiled = ('script.rpyc', 'scripts/day1.rpyc', 'shipped.rpyc')
+        for p in compiled:                                                     # what the engine's first launch writes
+            with open(os.path.join(rg, p), 'wb') as f:
+                f.write(b'compiled here')
+        runner.setup(self.root, run)                                           # every run links the folder again
+        for p in compiled:                                                     # kept, not compiled again
+            self.assertTrue(os.path.isfile(os.path.join(rg, p)) and not os.path.islink(os.path.join(rg, p)), p)
+        self.assertEqual(os.listdir(os.path.join(g, 'scripts')), ['day1.rpy'])  # the game is untouched
+        with open(os.path.join(g, 'shipped.rpyc'), 'rb') as f:
+            self.assertEqual(f.read(), b'rpyc')
+        os.remove(os.path.join(g, 'scripts', 'day1.rpy'))                      # a script the game no longer has
+        runner.setup(self.root, run)
+        self.assertFalse(os.path.lexists(os.path.join(rg, 'scripts', 'day1.rpyc')))
+
+    def test_a_file_put_there_by_hand_is_not_deleted(self):
+        run = os.path.join(self.tmp.name, 'run')
+        runner.setup(self.root, run)
+        with open(os.path.join(run, 'game', 'images', 'notes.txt'), 'w') as f:
+            f.write('mine')
+        with self.assertRaises(SystemExit):
+            runner.setup(self.root, run)
+        self.assertTrue(os.path.exists(os.path.join(run, 'game', 'images', 'notes.txt')))
 
 
 if __name__ == '__main__':

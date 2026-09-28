@@ -64,28 +64,69 @@ def setup(game, rundir, version=None, sdk_dir=None, exclude=None):
     print(f"launch folder: {rundir} (Ren'Py {version or 'from ' + sdk_dir})")
 
 
+COMPILED = {'.rpyc': '.rpy', '.rpymc': '.rpym'}
+
+
+def _source(name):
+    """The source of a compiled script (x.rpy for x.rpyc), or None."""
+    for ext, src in COMPILED.items():
+        if name.endswith(ext):
+            return name[:-len(ext)] + src
+    return None
+
+
 def link_game(info, rundir):
-    """(Re)make game/ of a launch folder: a link to every file and folder of the game's game/ (not its saves and
-    cache, not overlay mods, not ``exclude``) and capture.rpy. The engine's own saves/ and cache/ (compiled bytecode)
-    are kept. Called on every run, so the folder follows an updated game."""
+    """(Re)make game/ of a launch folder: the folders of the game's game/ as real folders, with a link to every file
+    (not its saves and cache, not overlay mods, not ``exclude``), and capture.rpy. Whatever the engine writes lands in
+    the launch folder, never in the game: its saves/ and cache/, and the scripts it compiles — a compiled script whose
+    source the game ships too is not linked, the engine compiles its own from the source and keeps it for later runs.
+    Called on every run, so the folder follows an updated game."""
     g = game_dir(info['game'])
     rg = os.path.join(rundir, 'game')
     rx = re.compile(info['exclude']) if info.get('exclude') else None
     os.makedirs(rg, exist_ok=True)
-    for f in os.listdir(rg):
-        p = os.path.join(rg, f)
-        if f in ('saves', 'cache'):
-            continue
-        if not (os.path.islink(p) or f.startswith(RPY_NAME[:-3])):     # capture.rpy and its .rpyc
-            raise SystemExit(f'{p} is not a link made by renpy-capture; the launch folder was changed by hand')
-        os.remove(p)
-    for f in sorted(os.listdir(g)):
-        if f in ('saves', 'cache') or f.lower().endswith('.exe') or MODS.search(f) or (rx and rx.search(f)):
-            continue
-        os.symlink(os.path.join(g, f), os.path.join(rg, f))
+    _unlink(g, rg, rg)
+    for d, subs, files in os.walk(g):
+        rel = os.path.relpath(d, g)
+        if rel == '.':
+            subs[:] = [s for s in subs if s not in ('saves', 'cache') and not MODS.search(s)
+                       and not (rx and rx.search(s))]
+            files = [f for f in files if not f.lower().endswith('.exe') and not MODS.search(f)
+                     and not (rx and rx.search(f))]
+        files += [s for s in subs if os.path.islink(os.path.join(d, s))]     # a link to a folder in the game is
+        subs[:] = sorted(s for s in subs if not os.path.islink(os.path.join(d, s)))   # linked as it is
+        dst = rg if rel == '.' else os.path.join(rg, rel)
+        os.makedirs(dst, exist_ok=True)
+        have = set(files)
+        for f in sorted(files):
+            if _source(f) in have or os.path.lexists(os.path.join(dst, f)):   # the engine's own compiled script
+                continue
+            os.symlink(os.path.join(d, f), os.path.join(dst, f))
     for sub in ('saves', 'cache'):
         os.makedirs(os.path.join(rg, sub), exist_ok=True)
     shutil.copy(CAPTURE_RPY, os.path.join(rg, RPY_NAME))
+
+
+def _unlink(g, rg, d):
+    """Take down what link_game made in the folder ``d`` of a launch folder's game/ ``rg``: links and capture.rpy go,
+    folders go once empty. The engine's saves/ and cache/ stay, and so do the scripts it compiled while the game
+    still has their source. Anything else was put there by hand: refuse rather than delete it."""
+    rel = os.path.relpath(d, rg)
+    for f in os.listdir(d):
+        p = os.path.join(d, f)
+        if d == rg and f in ('saves', 'cache'):
+            continue
+        if os.path.islink(p) or (d == rg and f.startswith(RPY_NAME[:-3])):     # capture.rpy and its .rpyc
+            os.remove(p)
+        elif os.path.isdir(p):
+            _unlink(g, rg, p)
+            if not os.listdir(p):
+                os.rmdir(p)
+        elif _source(f):
+            if not os.path.exists(os.path.join(g, rel, _source(f))):         # the game no longer has the source
+                os.remove(p)
+        else:
+            raise SystemExit(f'{p} is not a link made by renpy-capture; the launch folder was changed by hand')
 
 
 def init_config(game, path):

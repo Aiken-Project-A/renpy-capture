@@ -151,11 +151,10 @@ class TortureTest(unittest.TestCase):
 class UncompiledSourceLinkBug(unittest.TestCase):
     """Found while building the Torture Test, needs no engine or SDK download to reproduce: a game that ships bare
     .rpy sources (no precompiled .rpyc, unlike The Question or any built game) has its very first compile write real
-    .rpyc files straight into the launch folder's game/, next to the symlinked .rpy of the same name. `link_game`'s
-    "was this folder changed by hand?" check, run again at the top of every later `run()` (explore(), prun() and a
-    plain second `run` all make one), cannot tell its own engine's output from tampering and refuses to proceed."""
+    .rpyc files straight into the launch folder's game/, next to the symlinked .rpy of the same name. `link_game`,
+    run again at the top of every later `run()` (explore(), prun() and a plain second `run` all make one), used to
+    take its own engine's output for a change made by hand and refuse to go on; now it keeps the compiled script."""
 
-    @unittest.expectedFailure           # renpy-capture bug: see the class docstring for the smallest reproduction
     def test_second_link_after_compile_is_refused(self):
         tmp = tempfile.mkdtemp(prefix='renpy-capture-linkbug-')
         try:
