@@ -17,7 +17,9 @@ a table of every line with its picture, and a page to read the whole game on lik
 
 <sub>The Question, the sample game that ships with the Ren'Py SDK; its artwork is released under the MIT license.</sub>
 
-See the whole result for The Question: https://aiken-project-a.github.io/renpy-capture/
+See the whole result for The Question: https://aiken-project-a.github.io/renpy-capture/ — and its Russian
+translation beside the original, with the game's own dialogue window:
+https://aiken-project-a.github.io/renpy-capture/the-question-ru/
 
 ## Who it helps
 

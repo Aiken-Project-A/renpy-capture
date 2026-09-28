@@ -61,6 +61,12 @@ jobs:
         run: renpy-capture explore "$WORK/run" "$WORK/config.json" "$WORK/out" --display xvfb
       - name: Export the capture
         run: renpy-capture export "$WORK/out" "$GAME" site/the-question
+      - name: Capture the text in English and in the Russian translation
+        run: |
+          renpy-capture run "$WORK/run" "$WORK/config.json" "$WORK/out-text" --display xvfb --text
+          renpy-capture run "$WORK/run" "$WORK/config.json" "$WORK/out-ru-text" --display xvfb --text --language russian
+      - name: Export them side by side
+        run: renpy-capture export "$WORK/out-text" "$GAME" site/the-question-ru --beside "$WORK/out-ru-text"
       - name: Write the landing page
         run: |
           cat > site/index.html <<'HTML'
@@ -103,6 +109,8 @@ jobs:
               <span>Every scene of every branch, as a page to read like a book</span></a></li>
             <li><a href="the-question/shots.tsv">Every interaction as a table
               <span>shots.tsv — job, line, speaker, text, picture</span></a></li>
+            <li><a href="the-question-ru/index.html">The Russian translation beside the original
+              <span>Each line in both languages, with the game's own dialogue window, side by side</span></a></li>
             <li><a href="https://github.com/Aiken-Project-A/renpy-capture">renpy-capture on GitHub
               <span>Source, README, and how to run it on your own game</span></a></li>
           </ul>
