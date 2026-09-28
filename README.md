@@ -2,6 +2,7 @@
 
 **Every line of a Ren'Py visual novel, in every branch, with a screenshot taken by the game's own engine.**
 
+[![Tests](https://github.com/Aiken-Project-A/renpy-capture/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/Aiken-Project-A/renpy-capture/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2b6cb0)](LICENSE)
 ![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-2b6cb0)
 ![Linux](https://img.shields.io/badge/platform-Linux-2b6cb0)
