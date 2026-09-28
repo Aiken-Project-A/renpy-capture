@@ -29,7 +29,6 @@
   made by hand), and a script in a subfolder was compiled through the link into the game itself.
 - The Ren'Py version of games made with Ren'Py 7.5 and later (`version = u'…'`) is read again; a project inside an
   SDK folder takes that SDK's version.
-- Several engines starting at once no longer download the same SDK together.
 
 ## 0.1.0 — 2026-09-28
 
