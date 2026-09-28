@@ -17,6 +17,8 @@ a table of every line with its picture, and a page to read the whole game on lik
 
 <sub>The Question, the sample game that ships with the Ren'Py SDK; its artwork is released under the MIT license.</sub>
 
+See the whole result for The Question: https://aiken-project-a.github.io/renpy-capture/
+
 ## Who it helps
 
 - **Translators.** A line in a spreadsheet does not tell who speaks, to whom, or what is on screen; here every line
