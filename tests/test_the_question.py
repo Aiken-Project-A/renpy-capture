@@ -172,6 +172,20 @@ class TheQuestion(unittest.TestCase):
         self.assertIn(html.escape(says[0]['beside_what']), page)
         self.assertNotIn('took another way', page)
 
+    def test_gaps_without_sources(self):
+        """A game that ships only compiled scripts: unrpyc is fetched by itself (unless RENPY_CAPTURE_UNRPYC points to
+        a copy), and nothing is left unreached, as with the sources."""
+        game, cfg, _rundir, out = self.out['loose']
+        bare = os.path.join(self.tmp, 'bare', 'the_question')
+        shutil.copytree(game, bare)
+        for base, _dirs, files in os.walk(os.path.join(bare, 'game')):
+            for f in files:
+                if f.endswith('.rpy'):
+                    os.remove(os.path.join(base, f))
+        with contextlib.redirect_stdout(io.StringIO()):
+            found = analysis.gaps(bare, cfg, out)
+        self.assertEqual(dict(found), {})
+
     def test_capture_in_one_command(self):
         """`capture` does the usual way in one work folder and says what to open; the translation captured into the
         same folder gets its page beside the original's; a second run goes on (nothing left to do)."""

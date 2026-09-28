@@ -111,8 +111,8 @@ phase; `--renpy-version` when the game does not tell its version. `renpy-capture
 SDKs are kept in `~/.cache/renpy-capture/sdk` (`RENPY_CAPTURE_SDK` puts them elsewhere).
 
 For games that ship only compiled scripts (`.rpyc`), the check for unreached lines and the scene names of the page
-need [unrpyc](https://github.com/CensoredUsername/unrpyc): set `RENPY_CAPTURE_UNRPYC` to its folder. The capture
-itself does not need it.
+read them with [unrpyc](https://github.com/CensoredUsername/unrpyc) (MIT): renpy-capture downloads a pinned release
+once from GitHub and checks its files, or uses your own copy when `RENPY_CAPTURE_UNRPYC` points to it.
 
 ### A translation
 

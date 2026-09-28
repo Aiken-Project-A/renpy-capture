@@ -143,8 +143,9 @@ _unrpyc = None
 
 def decompile(raw):
     """A compiled script (.rpyc) as .rpy text, with the line numbers of the original, via unrpyc
-    (https://github.com/CensoredUsername/unrpyc, MIT). It is only needed for games that ship no .rpy sources:
-    point RENPY_CAPTURE_UNRPYC to a checkout of unrpyc (the folder with unrpyc.py), or make it importable."""
+    (https://github.com/CensoredUsername/unrpyc, MIT). Only games that ship no .rpy sources need it: the copy
+    RENPY_CAPTURE_UNRPYC points to (the folder with unrpyc.py), an importable one, or else a pinned release that is
+    downloaded once and checked (sdk.unrpyc)."""
     global _unrpyc
     if _unrpyc is None:
         where = os.environ.get('RENPY_CAPTURE_UNRPYC')
@@ -154,9 +155,12 @@ def decompile(raw):
             import unrpyc
             import decompiler
         except ImportError as e:
-            raise ImportError('this game ships compiled scripts only (.rpyc); to read them, get unrpyc '
-                              '(https://github.com/CensoredUsername/unrpyc) and set RENPY_CAPTURE_UNRPYC to its '
-                              'folder') from e
+            if where:
+                raise ImportError(f'RENPY_CAPTURE_UNRPYC={where}: no unrpyc there ({e})') from e
+            from .sdk import unrpyc as fetched
+            sys.path.insert(0, fetched())
+            import unrpyc
+            import decompiler
         _unrpyc = (unrpyc, decompiler)
     unrpyc, decompiler = _unrpyc
     ctx = unrpyc.Context()

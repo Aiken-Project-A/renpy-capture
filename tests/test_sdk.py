@@ -1,4 +1,6 @@
-"""The SDK cache: one download however many workers ask at once; an SDK folder is either whole or absent."""
+"""The downloads: the SDK cache (one download however many workers ask at once; an SDK folder is either whole or
+absent), and unrpyc, kept only when its files are the pinned ones."""
+import contextlib
 import hashlib
 import io
 import os
@@ -94,3 +96,70 @@ class SdkTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def fake_unrpyc(version, extra=b''):
+    """A tar.gz shaped like an unrpyc release: unrpyc-<version>/unrpyc.py, decompiler/, LICENSE, a test file."""
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode='w:gz') as t:
+        for name, data in ((f'unrpyc-{version}/unrpyc.py', b'# unrpyc\n' + extra),
+                           (f'unrpyc-{version}/decompiler/__init__.py', b''),
+                           (f'unrpyc-{version}/LICENSE', b'MIT\n'),
+                           (f'unrpyc-{version}/README.md', b'readme\n')):
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            t.addfile(info, io.BytesIO(data))
+    return buf.getvalue()
+
+
+class UnrpycTest(unittest.TestCase):
+    """unrpyc for games without sources: downloaded once, kept only when its files are the pinned ones."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.tar, self.downloads = fake_unrpyc('0.0.1'), []
+
+        def urlretrieve(url, path):
+            self.downloads.append(url)
+            with open(path, 'wb') as f:
+                f.write(self.tar)
+
+        ref = os.path.join(self.tmp.name, 'ref')
+        with tarfile.open(fileobj=io.BytesIO(self.tar)) as t:
+            t.extractall(ref)
+        self.patches = [mock.patch.dict(os.environ, {'XDG_CACHE_HOME': self.tmp.name}),
+                        mock.patch.object(sdk.urllib.request, 'urlretrieve', urlretrieve),
+                        mock.patch.object(sdk, 'UNRPYC', ('0.0.1', sdk.content_hash(os.path.join(ref, 'unrpyc-0.0.1'))))]
+        for p in self.patches:
+            p.start()
+
+    def tearDown(self):
+        for p in self.patches:
+            p.stop()
+        self.tmp.cleanup()
+
+    def test_downloaded_once_and_checked(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            d = sdk.unrpyc()
+            self.assertEqual(sdk.unrpyc(), d)
+        self.assertTrue(os.path.isfile(os.path.join(d, 'unrpyc.py')))
+        self.assertEqual(len(self.downloads), 1)
+        self.assertIn('/v0.0.1.tar.gz', self.downloads[0])
+
+    def test_other_files_are_refused(self):
+        self.tar = fake_unrpyc('0.0.1', extra=b'print("not the release")\n')
+        with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(ImportError):
+            sdk.unrpyc()
+        self.assertEqual([n for n in os.listdir(sdk.tools_root()) if not n.startswith('.unrpyc')], [])
+
+    def test_the_hash_does_not_depend_on_other_files(self):
+        a = os.path.join(self.tmp.name, 'a')
+        with tarfile.open(fileobj=io.BytesIO(self.tar)) as t:
+            t.extractall(a)
+        before = sdk.content_hash(os.path.join(a, 'unrpyc-0.0.1'))
+        with open(os.path.join(a, 'unrpyc-0.0.1', 'README.md'), 'w') as f:      # not code: not in the hash
+            f.write('changed')
+        self.assertEqual(sdk.content_hash(os.path.join(a, 'unrpyc-0.0.1')), before)
+        with open(os.path.join(a, 'unrpyc-0.0.1', 'decompiler', '__init__.py'), 'w') as f:
+            f.write('x = 1\n')
+        self.assertNotEqual(sdk.content_hash(os.path.join(a, 'unrpyc-0.0.1')), before)

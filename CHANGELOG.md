@@ -11,6 +11,9 @@
   to `report`. `prun` no longer prints a report for every batch of every engine.
 - `--help` explains every argument, and the main help starts with the usual way.
 - `explore` says when branches were left out because the config reached `--limit` jobs.
+- Games that ship only compiled scripts need no setup by hand any more: unrpyc, which reads them for `gaps` and
+  `export`, is downloaded once from its GitHub release and its files are checked (`RENPY_CAPTURE_UNRPYC` still points
+  to a copy of your own).
 
 ### For translators
 - `--language NAME` (config `language`) captures a translation: the engine starts in `game/tl/NAME`. A translated
