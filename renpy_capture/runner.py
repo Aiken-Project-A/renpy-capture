@@ -10,6 +10,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 
 from . import sdk as sdkmod
 from .analysis import report
@@ -422,11 +423,23 @@ def prun(rundir, cfg_path, out, workers=4, timewarp=4.0, batch=8, display=None, 
     done = set(read_text(dpath).split()) if os.path.exists(dpath) else set()
     queue = [j for j in cfg['jobs'] if j['id'] not in done]
     info = _info(rundir)
+    if not info.get('sdk'):                         # once, before the workers: together they would all download it
+        sdkmod.ensure(info['version'])
     lock = threading.Lock()
     tries = collections.Counter()
     nworkers = max(1, min(workers, len(queue)))
+    failed = []
 
     def worker(k):
+        try:
+            work(k)
+        except BaseException as e:                  # a thread drops SystemExit silently: keep it for the end
+            if not isinstance(e, SystemExit):
+                traceback.print_exc()
+            with lock:
+                failed.append((k, e))
+
+    def work(k):
         rd = f'{os.path.abspath(rundir).rstrip(os.sep)}-w{k}'
         with lock:                                  # workers follow the main folder (game, version, exclude)
             setup(info['game'], rd, info.get('version'), info.get('sdk'), info.get('exclude'))
@@ -479,7 +492,12 @@ def prun(rundir, cfg_path, out, workers=4, timewarp=4.0, batch=8, display=None, 
         t.start()
     for t in threads:
         t.join()
-    report(out)
+    if os.path.exists(os.path.join(out, 'log.jsonl')):
+        report(out)
+    if failed:                                      # the other workers went on; the stopped one's batch is not done
+        k, e = failed[0]
+        why = e.code if isinstance(e, SystemExit) else f'{type(e).__name__}: {e}'
+        raise SystemExit(f'worker w{k} stopped: {why}\nfinished jobs are kept; run the same command again to go on')
 
 
 def explore(rundir, cfg_path, out, rounds=10, timewarp=4.0, limit=600, workers=1, batch=8, display=None, gpu=None,

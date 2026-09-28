@@ -3,9 +3,12 @@
 The capture never runs the game's own executable: it runs the official SDK of the same version on a launch folder
 that links to the game's files. SDKs are kept in ``$RENPY_CAPTURE_SDK`` (default ``~/.cache/renpy-capture/sdk``).
 """
+import fcntl
 import hashlib
 import os
+import shutil
 import tarfile
+import tempfile
 import urllib.request
 
 DOWNLOADS = 'https://www.renpy.org/dl/'
@@ -17,18 +20,29 @@ def cache_root():
 
 
 def ensure(version):
-    """The folder of the SDK ``version`` (e.g. '8.2.3'), downloaded and unpacked if it is not there yet."""
+    """The folder of the SDK ``version`` (e.g. '8.2.3'), downloaded and unpacked if it is not there yet. Workers and
+    runs may ask for it at once: one downloads, the others wait and take the same folder."""
     root = cache_root()
     d = os.path.join(root, f'renpy-{version}-sdk')
     if os.path.isfile(os.path.join(d, 'renpy.sh')):
         return d
     os.makedirs(root, exist_ok=True)
+    with open(os.path.join(root, f'.renpy-{version}-sdk.lock'), 'w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)            # held until the file is closed or the process dies
+        if not os.path.isfile(os.path.join(d, 'renpy.sh')):
+            fetch(version, root, d)
+    return d
+
+
+def fetch(version, root, d):
+    """Download, check and unpack the SDK into ``d``. The archive is unpacked aside and moved in whole, so a cut-off
+    unpack never looks like a ready SDK."""
     name = f'renpy-{version}-sdk.tar.bz2'
     base = f'{DOWNLOADS}{version}/'
     tb = os.path.join(root, name)
     try:
         if not os.path.exists(tb):
-            print(f'downloading {base}{name}')
+            print(f'downloading {base}{name}', flush=True)
             urllib.request.urlretrieve(base + name, tb + '.part')
             os.replace(tb + '.part', tb)
         with urllib.request.urlopen(base + 'checksums.txt') as r:
@@ -47,12 +61,19 @@ def ensure(version):
         os.remove(tb)
         raise SystemExit(f'sha256 of {name} does not match the official one ({h.hexdigest()} != {want}); '
                          'the download was removed, try again')
-    print(f'unpacking {name}')
-    with tarfile.open(tb) as t:
-        if hasattr(tarfile, 'tar_filter'):          # Python 3.12+: refuse absolute paths and paths outside root
-            t.extractall(root, filter='tar')
-        else:
-            t.extractall(root)
-    if not os.path.isfile(os.path.join(d, 'renpy.sh')):
-        raise SystemExit(f'{name} unpacked, but {d}/renpy.sh is missing')
-    return d
+    print(f'unpacking {name}', flush=True)
+    tmp = tempfile.mkdtemp(prefix=f'.renpy-{version}-sdk-', dir=root)
+    try:
+        with tarfile.open(tb) as t:
+            if hasattr(tarfile, 'tar_filter'):      # Python 3.12+: refuse absolute paths and paths outside tmp
+                t.extractall(tmp, filter='tar')
+            else:
+                t.extractall(tmp)
+        got = os.path.join(tmp, os.path.basename(d))
+        if not os.path.isfile(os.path.join(got, 'renpy.sh')):
+            raise SystemExit(f'{name} unpacked, but {os.path.basename(d)}/renpy.sh is missing in it')
+        if os.path.isdir(d):                        # a cut-off unpack of an earlier version of this tool
+            shutil.rmtree(d)
+        os.rename(got, d)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
