@@ -143,7 +143,7 @@ def _tsv(v):
     return '' if v is None else str(v).replace('\t', ' ').replace('\r', ' ').replace('\n', ' ⏎ ')
 
 
-def export(out, game, dest, opts=None, page=True):
+def export(out, game, dest, opts=None, page=True, beside=None):
     """``out`` is a capture output, ``game`` the game, ``dest`` the export folder. ``opts`` (all optional):
     cg — regex of image files that make an event picture (CG); with it, cg/<label>_<NN>.png and cg.tsv are written;
     cg_min — the share of the frame such a file must cover (0.08); crop — [x0, y0, x1, y1] of the picture area;
@@ -152,7 +152,8 @@ def export(out, game, dest, opts=None, page=True):
     flash images: a frame with one of them on screen is an effect; effects — regex of effect tags and screens: frames
     of the same scene without them are one CG, the cleanest one is kept; context — for chains of labels joined by
     jumps, take a CG from the run that reached it with the most scene behind it; fx_skip — regex of line effects not
-    to list."""
+    to list. ``beside`` is another capture of the same jobs (a translation, captured with --language): its lines,
+    menus and frames go next to these, step by step, as long as it takes the game the same way."""
     opts = opts or {}
     g = Game(game)
     try:
@@ -300,9 +301,7 @@ def export(out, game, dest, opts=None, page=True):
                 rows.append((name, h, r['job'], r['seq'], fn, r.get('line'), lab, ' '.join(r.get('shown', [])),
                              ' '.join(r.get('screens', []))))
         effs = [e for e in r.get('fx', []) if not (fx_skip and fx_skip.search(e))]
-        menu = r.get('menu') or {}
-        pick = menu.get('pick')
-        opts_txt = ' | '.join(('» ' if i == pick else '') + o for i, o in enumerate(menu.get('options', [])))
+        opts_txt = _menu_text(r)
         shots.append({'job': r['job'], 'step': r['seq'], 'file': fn, 'line': r.get('line'), 'label': lab,
                       'statement': r.get('kind') or '', 'who': r.get('who') or '', 'name': r.get('name') or '',
                       'what': r.get('what') or '', 'frame': h or '', 'cg': name, 'skip': 'skip' if r.get('skip') else '',
@@ -312,6 +311,10 @@ def export(out, game, dest, opts=None, page=True):
             _place(frame_path(h), os.path.join(dest, 'frames', h + '.png'))
     cols = ['job', 'step', 'file', 'line', 'label', 'statement', 'who', 'name', 'what', 'frame', 'cg', 'skip',
             'effects', 'menu', 'tl', 'tl_file', 'tl_line']
+    apart, blang = {}, None
+    if beside:
+        apart, blang = _pair(shots, log, beside, dest)
+        cols += ['beside_name', 'beside_what', 'beside_menu', 'beside_frame']
     with open(os.path.join(dest, 'shots.tsv'), 'w', encoding='utf-8') as f:
         f.write('\t'.join(cols) + '\n')
         for s in shots:
@@ -333,15 +336,49 @@ def export(out, game, dest, opts=None, page=True):
             for n, (kind, fl, d) in fx_defs(scripts, used, list(g.files)).items():
                 f.write('\t'.join((_tsv(n), kind, ' '.join(fl), _tsv(d))) + '\n')
     if page:
-        write_page(dest, shots, os.path.basename(os.path.abspath(game).rstrip(os.sep)))
+        write_page(dest, shots, os.path.basename(os.path.abspath(game).rstrip(os.sep)),
+                   beside=(blang or 'the capture beside') if beside else None, apart=apart)
     print(f'interactions: {len(shots)}, frames: {len({s["frame"] for s in shots if s["frame"]})}'
           + (f', CG: {len(rows)} (labels {len(counters)})' if cgrx else '') + f', effects: {len(used)}')
+    for job, step in apart.items():
+        print(f'{job}: the capture beside took another way at step {step}')
+
+
+def _menu_text(r):
+    menu = r.get('menu') or {}
+    pick = menu.get('pick')
+    return ' | '.join(('» ' if i == pick else '') + o for i, o in enumerate(menu.get('options', [])))
+
+
+def _pair(shots, log, beside, dest):
+    """Put the lines of another capture of the same jobs next to these, by job and step, until it takes another way
+    (another line of the scripts, another translation id, or its job ends earlier): from there on a job has nothing
+    beside it. Its frames are copied too. Returns {job: the step where it went apart} and its language."""
+    blog = read_jsonl(os.path.join(beside, 'log.jsonl'))
+    other = {(r['job'], r['seq']): r for r in blog if r['ev'] == 'shot'}
+    apart = {}
+    for s in shots:
+        b = None if s['job'] in apart else other.get((s['job'], s['step']))
+        if b is not None and ((script_path(b.get('file')), b.get('line')) != (s['file'], s['line'])
+                              or (b.get('tl') and s['tl'] and b['tl'] != s['tl'])):   # (older captures have no ids)
+            b = None
+        if b is None:
+            apart.setdefault(s['job'], s['step'])
+            b = {}
+        h = b.get('frame') or ''
+        s.update(beside_name=b.get('name') or b.get('who') or '', beside_what=b.get('what') or '',
+                 beside_menu=_menu_text(b), beside_frame=h)
+        if h:
+            _place(os.path.join(beside, 'frames', h + '.png'), os.path.join(dest, 'frames', h + '.png'))
+    return apart, next((r['language'] for r in blog if r['ev'] == 'start' and r.get('language')), None)
 
 
 PAGE_CSS = """
-:root { --bg: #f6f5f2; --card: #fff; --ink: #222; --muted: #6b6b6b; --line: #e3e0da; --pick: #1f6feb; }
+:root { --bg: #f6f5f2; --card: #fff; --ink: #222; --muted: #6b6b6b; --line: #e3e0da; --pick: #1f6feb;
+        --beside: #8a5a00; --warn: #b3261e; }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #16171a; --card: #1f2125; --ink: #e8e6e3; --muted: #9a9a9a; --line: #2e3035; --pick: #6ea8ff; }
+  :root { --bg: #16171a; --card: #1f2125; --ink: #e8e6e3; --muted: #9a9a9a; --line: #2e3035; --pick: #6ea8ff;
+          --beside: #e0b050; --warn: #ff8a80; }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, sans-serif; }
@@ -362,12 +399,30 @@ summary small { color: var(--muted); font-weight: 400; }
 .menu { list-style: none; padding: 0; margin: 0 0 8px; }
 .menu li { padding: 2px 8px; border-left: 3px solid var(--line); margin: 2px 0; }
 .menu li.pick { border-color: var(--pick); color: var(--pick); }
-@media (max-width: 760px) { .shot { grid-template-columns: 1fr; } }
+.shot.two { grid-template-columns: minmax(0, 420px) minmax(0, 420px) minmax(0, 1fr); }
+.beside { border-left: 3px solid var(--beside); padding-left: 8px; }
+.beside .who { color: var(--beside); }
+.apart { color: var(--warn); font-style: italic; }
+@media (max-width: 760px) { .shot, .shot.two { grid-template-columns: 1fr; } }
 """
 
 
-def write_page(dest, shots, title):
-    """index.html: jobs as sections; consecutive lines on the same frame share one picture."""
+def _say(s, pre, cls=''):
+    esc = html.escape
+    who = s[pre + 'name'] or s.get(pre + 'who', '')
+    return f'<p{cls}>{f"<span class=who>{esc(who)}</span>" if who else ""}{esc(s[pre + "what"])}'
+
+
+def _menu(text, cls=''):
+    esc = html.escape
+    lis = ''.join(f'<li class="pick">{esc(o[2:])}</li>' if o.startswith('» ') else f'<li>{esc(o)}</li>'
+                  for o in text.split(' | '))
+    return f'<ul class="menu{cls}">{lis}</ul>'
+
+
+def write_page(dest, shots, title, beside=None, apart=None):
+    """index.html: jobs as sections; consecutive lines on the same frame share one picture. With ``beside`` (the
+    name of the other capture: its language), its lines follow these, its frame follows when it differs."""
     jobs = collections.OrderedDict()
     for s in shots:
         jobs.setdefault(s['job'], []).append(s)
@@ -376,35 +431,44 @@ def write_page(dest, shots, title):
              f'<meta name="viewport" content="width=device-width, initial-scale=1">'
              f'<title>{esc(title)} · renpy-capture</title><style>{PAGE_CSS}</style></head><body>',
              f'<header><h1>{esc(title)}</h1><p>{len(shots)} interactions in {len(jobs)} jobs, '
-             f'{len({s["frame"] for s in shots if s["frame"]})} distinct frames</p></header><main>']
+             f'{len({s["frame"] for s in shots if s["frame"]})} distinct frames'
+             + (f'; beside them: {esc(beside)}' if beside else '') + '</p></header><main>']
     for job, items in jobs.items():
         label = next((s['label'] for s in items if s['label']), '')
         parts.append(f'<details{" open" if len(jobs) == 1 else ""}><summary>{esc(job)} '
                      f'<small>{esc(label)} · {len(items)} interactions</small></summary>')
         groups = []
         for s in items:
-            if groups and groups[-1][0] == s['frame'] and s['frame']:
+            pair = (s['frame'], s.get('beside_frame', ''))
+            if groups and groups[-1][0] == pair and s['frame']:
                 groups[-1][1].append(s)
             else:
-                groups.append((s['frame'], [s]))
-        for frame, lines in groups:
+                groups.append((pair, [s]))
+        for (frame, bframe), lines in groups:
             img = (f'<img loading="lazy" src="frames/{frame}.png" alt="">' if frame
                    else '<div class="noimg">no frame (skipped)</div>')
+            two = bool(bframe and bframe != frame)          # its own frame (with --text): side by side
+            if two:
+                img += f'</div><div><img loading="lazy" src="frames/{bframe}.png" alt="">'
             body = []
             for s in lines:
+                if apart and apart.get(job) == s['step']:
+                    body.append(f'<p class="apart">From here on {esc(beside)} took another way.</p>')
                 tl = (f' · {esc(s["tl_file"])}:{s["tl_line"]}' if s['tl_file'] else '') + \
                      (f' · {esc(s["tl"])}' if s['tl'] else '')        # a translator finds the line by its id
                 meta = f'<span class="meta">{esc(s["file"])}:{s["line"]} · {esc(s["statement"])}{tl}</span>'
                 if s['menu']:
-                    lis = ''.join(f'<li class="pick">{esc(o[2:])}</li>' if o.startswith('» ') else f'<li>{esc(o)}</li>'
-                                  for o in s['menu'].split(' | '))
-                    body.append(f'<ul class="menu">{lis}</ul>')
+                    body.append(_menu(s['menu']))
                 elif s['what'] or s['who']:
-                    who = s['name'] or s['who']
-                    body.append(f'<p>{f"<span class=who>{esc(who)}</span>" if who else ""}{esc(s["what"])}{meta}</p>')
+                    body.append(_say(s, '') + meta + '</p>')
                 else:
                     body.append(f'<p>{meta}</p>')
-            parts.append(f'<div class="shot"><div>{img}</div><div class="lines">{"".join(body)}</div></div>')
+                if s.get('beside_menu'):
+                    body.append(_menu(s['beside_menu'], ' beside'))
+                elif s.get('beside_what'):
+                    body.append(_say(s, 'beside_', ' class="beside"') + '</p>')
+            parts.append(f'<div class="shot{" two" if two else ""}"><div>{img}</div>'
+                         f'<div class="lines">{"".join(body)}</div></div>')
         parts.append('</details>')
     parts.append('</main></body></html>')
     with open(os.path.join(dest, 'index.html'), 'w', encoding='utf-8') as f:

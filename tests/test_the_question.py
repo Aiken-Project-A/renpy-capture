@@ -7,6 +7,7 @@ tests.test_the_question. RENPY_CAPTURE_IT_VERSION picks the SDK (default 8.3.2),
 RENPY_CAPTURE_IT_GPU the display and GPU.
 """
 import contextlib
+import html
 import io
 import os
 import shutil
@@ -100,15 +101,22 @@ class TheQuestion(unittest.TestCase):
                  for o in (out, fast)]
         self.assertLess(drawn[1], drawn[0])
 
+    @classmethod
+    def russian(cls):
+        """The loose game captured in its Russian translation, once for the tests that need it."""
+        game, cfg, rundir, out = cls.out['loose']
+        ru = out + '-russian'
+        if not os.path.exists(os.path.join(ru, 'done.txt')):
+            with contextlib.redirect_stdout(io.StringIO()):
+                runner.run(rundir, cfg, ru, display=DISPLAY, gpu=GPU, language='russian')
+        return ru
+
     def test_a_translation_takes_the_same_course(self):
         """The Question ships a Russian translation. Captured in it, every line keeps the script place, label and
         translation id of the original, its text and the place of the text come from game/tl/russian, and the scenes
         are the same to the byte (the text is not part of the frame)."""
-        game, cfg, rundir, out = self.out['loose']
-        ru = out + '-russian'
-        with contextlib.redirect_stdout(io.StringIO()):
-            runner.run(rundir, cfg, ru, display=DISPLAY, gpu=GPU, language='russian')
-        self.compare(out, ru)
+        ru = self.russian()
+        self.compare(self.out['loose'][3], ru)
         recs = read_jsonl(os.path.join(ru, 'log.jsonl'))
         self.assertEqual({r.get('language') for r in recs if r['ev'] == 'start'}, {'russian'})
         en = [r for r in self.records('loose') if r['ev'] == 'shot']
@@ -143,6 +151,25 @@ class TheQuestion(unittest.TestCase):
             self.assertNotEqual(r['frame'], plain[r['job'], r['seq']]['frame'], r)
         lines = {(r.get('who'), r['what']) for r in shots if r.get('what')}
         self.assertGreaterEqual(len({r['frame'] for r in shots}), len(lines))
+
+    def test_export_beside_a_translation(self):
+        """export --beside: every line of the original with the Russian line of the same step next to it."""
+        game, cfg, _rundir, out = self.out['loose']
+        dest = os.path.join(self.tmp, 'export-beside')
+        with contextlib.redirect_stdout(io.StringIO()):
+            export.export(out, game, dest, beside=self.russian())
+        rows = read_text(os.path.join(dest, 'shots.tsv')).splitlines()
+        header = rows[0].split('\t')
+        cells = [dict(zip(header, r.split('\t'))) for r in rows[1:]]
+        says = [c for c in cells if c['tl']]
+        self.assertGreater(len(says), 50)
+        for c in says:
+            self.assertRegex(c['beside_what'], '[А-Яа-я]', c)
+        self.assertTrue(all(c['beside_menu'] for c in cells if c['menu']))
+        page = read_text(os.path.join(dest, 'index.html'))
+        self.assertIn('beside them: russian', page)
+        self.assertIn(html.escape(says[0]['beside_what']), page)
+        self.assertNotIn('took another way', page)
 
     def test_a_language_the_game_does_not_have(self):
         game, cfg, rundir, out = self.out['loose']

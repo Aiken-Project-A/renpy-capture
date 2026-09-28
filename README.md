@@ -62,7 +62,8 @@ flowchart LR
 
 - Inside the engine, `capture.rpy` takes the picture once the scene has **settled**: one-shot animations have
   finished, transitions are over, and nothing asks for a redraw any more (endless animations are captured at a fixed
-  phase). The dialogue window and the game's interface screens are not drawn, so the picture is the scene itself.
+  phase). The dialogue window and the game's interface screens are not drawn, so the picture is the scene itself
+  (`--text` keeps the window and menus).
 - A **job** plays a label as a replay (a fresh game state from `default`, plus the job's own variables) and answers
   menus with the options it was given, the first one otherwise. **`explore`** reads the menus met in the log and adds
   a job for every option not taken yet, until there are none.
@@ -112,13 +113,15 @@ describes every option. SDKs are kept in `~/.cache/renpy-capture/sdk` (`RENPY_CA
 can be up to twice as fast. The scenes and the course of the game stay the same, but an animation can be caught in
 another phase than without `--fast`, so compare runs made the same way. `report` shows where the time went.
 
-For a translation, capture the game in it and with its text in the frames, then compare with the original (the text
-is not part of a frame without `--text`, so the scenes of both languages are the same to the byte):
+For a translation, capture the game in it, compare with the original (the text is not part of a frame without
+`--text`, so the scenes of both languages are the same to the byte), then put both side by side on one page:
 
 ```sh
 renpy-capture run run/ config.json out-ru/ --language russian          # scenes, lines from game/tl/russian
 renpy-capture compare out/ out-ru/                                     # the same course, frame for frame
-renpy-capture run run/ config.json out-ru-text/ --language russian --text   # the game's window and menus too
+renpy-capture run run/ config.json out-text/ --text                    # the game's window and menus too,
+renpy-capture run run/ config.json out-ru-text/ --language russian --text   # in both languages
+renpy-capture export out-text/ ~/Games/MyGame export-ru/ --beside out-ru-text/   # the two frames and lines
 ```
 
 ## What you get
@@ -126,8 +129,10 @@ renpy-capture run run/ config.json out-ru-text/ --language russian --text   # th
 - `out/frames/<sha1>.png` — every distinct picture, once.
 - `out/log.jsonl` — one record per interaction and per job event (see [docs/output.md](docs/output.md)).
 - `export/shots.tsv` — every interaction in order: job, step, script file and line, label, statement, speaker
-  (variable and name), text, picture, menu options with the one taken.
-- `export/index.html` — the same as a page: jobs as sections, each picture with the lines spoken over it.
+  (variable and name), text, picture, menu options with the one taken, translation id; with `--beside`, the line,
+  menu and picture of the other capture too.
+- `export/index.html` — the same as a page: jobs as sections, each picture with the lines spoken over it; with
+  `--beside`, the other capture's lines under these and its picture next to this one when it differs.
 - `export/cg/` and `cg.tsv` — event pictures, when `export --options` names the image files that make one
   ([docs/config.md](docs/config.md#export-options)).
 

@@ -95,6 +95,8 @@ def main(argv=None):
     p.add_argument('dest')
     p.add_argument('--options', help='JSON file with export options (cg, crop, effects…; see docs/config.md)')
     p.add_argument('--no-page', action='store_true', help='do not write index.html')
+    p.add_argument('--beside', help='another capture of the same jobs (a translation, captured with --language): its '
+                                    'lines and frames next to these, step by step')
 
     a = ap.parse_args(argv)
     try:
@@ -147,7 +149,7 @@ def dispatch(a):
         from .export import export
         from .util import read_json
         opts = read_json(a.options) if a.options else None
-        export(a.out, a.game, a.dest, opts, page=not a.no_page)
+        export(a.out, a.game, a.dest, opts, page=not a.no_page, beside=a.beside)
 
 
 if __name__ == '__main__':
