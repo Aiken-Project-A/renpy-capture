@@ -31,7 +31,7 @@ expressions and match anywhere in the string (`re.search`) unless stated otherwi
 | `loop_limit` | Overrides the config key. |
 | `ui_timers` | `true`: interface screens receive events, so their timers run (to capture the "too late" outcome of a timed mini-game). A regex: only the matching screens. |
 | `wait_menus` | A regex on menu captions: on such a menu, do not answer and wait until the game's timer leads on by itself. |
-| `wait_max` | Seconds of game time to wait on such a menu (default 600). |
+| `wait_max` | Seconds of game time to wait on such a menu (default 600). A menu still waiting then is answered as usual, and `report` warns about it. |
 | `trans_max` | See below. |
 
 ## What is drawn

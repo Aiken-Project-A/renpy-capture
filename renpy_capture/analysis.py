@@ -24,9 +24,10 @@ def report(out):
     jobs = collections.OrderedDict()
     frames = set()
     stops = collections.Counter()
+    late = []                                       # wait_menus menus answered after wait_max
     for r in recs:
         j = jobs.setdefault(r['job'], {'shots': 0, 'frames': set(), 'skip': 0, 'menus': 0, 'stop': None,
-                                       'errors': 0, 'end': None})
+                                       'errors': 0, 'end': None, 'prev': None})
         if r['ev'] == 'shot':
             j['shots'] += 1
             if r.get('frame'):
@@ -36,6 +37,11 @@ def report(out):
                 j['skip'] += 1
             if r.get('menu'):
                 j['menus'] += 1
+                p = j['prev']                       # the same menu captured again, now answered: its timer never came
+                if 'pick' in r['menu'] and p and (p.get('menu') or {}).get('wait') \
+                        and (p.get('file'), p.get('line')) == (r.get('file'), r.get('line')):
+                    late.append(f"{r['job']}: \"{((r['menu'].get('options') or ['?'])[0])[:40]}\"")
+            j['prev'] = r
         elif r['ev'] == 'stop':
             where = f"{r.get('file') or ''}{':' + str(r['line']) if r.get('line') else ''}"
             j['stop'] = f"{r['why']} {r.get('label') or ''} {where}".strip()
@@ -58,6 +64,10 @@ def report(out):
         print(f'warning: {moving} of {steps} captures were taken while something was still moving. An overlay '
               '(a mod, a HUD screen with an animation) may never stop; list its screens in `ui` or its files in '
               '`drop`, or leave it out with setup --exclude')
+    if late:
+        print(f"warning: {len(late)} menu(s) of wait_menus were answered after wait_max, the game's timer never led "
+              f"on ({'; '.join(late[:5])}{'; …' if len(late) > 5 else ''}). A timer on an interface screen runs only "
+              'with ui_timers; a longer timer needs a larger wait_max')
     if steps >= 20 and secs / steps > 2:            # a healthy engine takes a fraction of a second per interaction
         print(f'warning: {secs / steps:.1f} s per interaction is very slow; the GPU driver may be in a bad state '
               '(try --gpu mesa or --display xvfb)')

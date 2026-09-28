@@ -39,9 +39,10 @@ CONFIG = {
         # "Consult the veteran's logbook" is gated on a flag exploration can never set on its own (nothing in the
         # game ever does); an exact job with a scope override is what `gaps` is for.
         {'id': 'veteran', 'label': 'start', 'scope': {'veteran_mode': True}, 'choices': [0, 1, 0]},
-        # demonstrates wait_menus/wait_max: the capture does not answer this menu itself but waits (game time) for
-        # it to resolve on its own, exactly as it would while a real player deliberated.
-        {'id': 'timeout_demo', 'label': 'start', 'choices': [1], 'wait_menus': '^Quick,', 'wait_max': 2},
+        # demonstrates wait_menus: the capture does not answer this menu itself but waits (game time) for the game's
+        # own timer to resolve it, exactly as it would while a real player deliberated. wait_max only answers a menu
+        # whose timer never comes; it is large here, so the test sees the game lead on by itself.
+        {'id': 'timeout_demo', 'label': 'start', 'choices': [1], 'wait_menus': '^Quick,', 'wait_max': 30},
     ],
     'ui': '^hud$',
     'settle': 0.3,
@@ -121,10 +122,14 @@ class TortureTest(unittest.TestCase):
         self.assertEqual(a, b)
 
     def test_timed_choice_times_out_to_default(self):
-        menus = [r['menu'] for r in self.records() if r['job'] == 'timeout_demo' and r['ev'] == 'shot'
-                 and r.get('menu')]
-        self.assertTrue(any(m.get('wait') for m in menus), menus)
-        self.assertTrue(any('pick' in m for m in menus), menus)
+        """The timed menu is left unanswered; the game's own timer (1 s) picks its first option, long before
+        wait_max would answer it."""
+        shots = [r for r in self.records() if r['job'] == 'timeout_demo' and r['ev'] == 'shot']
+        waited = [k for k, r in enumerate(shots) if (r.get('menu') or {}).get('wait')]
+        self.assertEqual(len(waited), 1, shots)
+        after = shots[waited[0] + 1]
+        self.assertNotIn('menu', after)                     # not answered by the capture after wait_max
+        self.assertEqual(after.get('what'), 'The left lever grinds and the gate slides open.')
 
     def test_export_covers_every_scene(self):
         dest = os.path.join(self.tmp, 'export')
@@ -163,7 +168,8 @@ class UncompiledSourceLinkBug(unittest.TestCase):
             with open(os.path.join(project, 'game', 'script.rpy'), 'w', encoding='utf-8') as f:
                 f.write('label start:\n    "hi"\n    return\n')
             rundir = os.path.join(tmp, 'run')
-            runner.setup(project, rundir, version='8.3.2')            # first link_game(): all symlinks, succeeds
+            with contextlib.redirect_stdout(io.StringIO()):          # first link_game(): all symlinks, succeeds
+                runner.setup(project, rundir, version='8.3.2')
             # what the engine's first launch does as a side effect of compiling script.rpy, simulated without
             # starting it: it writes script.rpyc as a real file next to the symlinked script.rpy in run/game/
             open(os.path.join(rundir, 'game', 'script.rpyc'), 'a').close()

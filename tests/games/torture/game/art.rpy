@@ -44,12 +44,10 @@ screen banner_screen(message):
         background Solid("#222222cc")
         text message color "#ffffff" size 28
 
-# No visible widgets: only a timer that, in a real playthrough, hands control back to the blocked menu once the
-# default has "timed out", by invoking the first option's own action — the same thing choosing it by hand would do.
-# renpy-capture always replaces the "choice" screen with an empty one, so a real timeout has to live on a screen of
-# its own. Under a capture this timer never actually fires — pygame_sdl2.time.set_timer is stubbed to a no-op under
-# the virtual clock (capture.rpy), so "wait_menus" always resolves through its own wait_max fallback instead; the
-# scene still settles deterministically, just not through this screen. See the PR description for the repro.
+# No visible widgets: only a timer that, once the default has "timed out", hands control back to the blocked menu by
+# returning the first option's own value, the same thing choosing it by hand would do. renpy-capture always replaces
+# the "choice" screen with an empty one, so a real timeout has to live on a screen of its own. Under a capture the
+# timer runs on the frame clock; "wait_menus" leaves the menu unanswered until it fires.
 screen countdown_timeout():
     timer 1.0 action Function(_torture_timeout_default)
 
@@ -59,4 +57,4 @@ init python:
         if choice is not None:
             items = [i for i in choice.scope.get("items", []) if getattr(i, "action", None) is not None]
             if items:
-                items[0].action()
+                return items[0].action()        # the value ends the menu's interaction, as a click on it would
