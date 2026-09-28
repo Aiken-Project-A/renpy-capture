@@ -1,0 +1,53 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          allow-prereleases: true             # 3.14 may still be a release candidate
+      - run: pip install .
+      - run: python -m unittest discover -s tests -t . -v
+
+  end-to-end:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        renpy-version: ['8.3.2', '7.8.7']      # 7.8.7 runs the in-engine script on Python 2.7
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install Xvfb and Mesa
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri libegl1
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/renpy-capture/sdk
+          key: ${{ runner.os }}-renpy-sdk-${{ matrix.renpy-version }}
+      - run: pip install .
+      - name: Capture The Question under Xvfb
+        env:
+          RENPY_CAPTURE_IT: '1'
+          RENPY_CAPTURE_IT_DISPLAY: xvfb
+          RENPY_CAPTURE_IT_VERSION: ${{ matrix.renpy-version }}
+        run: python -m unittest tests.test_the_question -v
