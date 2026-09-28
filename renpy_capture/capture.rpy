@@ -43,6 +43,10 @@ transform _rc_still:
 init python:
     import os as _rc_os, io as _rc_io, re as _rc_re, json as _rc_json, time as _rc_time
     import hashlib as _rc_hashlib, traceback as _rc_tb
+    try:
+        import ctypes as _rc_ctypes
+    except Exception:
+        _rc_ctypes = None
 
     class _RcState(python_object):
         """The capture's state: a plain object (python_object), outside rollback and saves; works on the Python 2
@@ -61,7 +65,8 @@ init python:
                      last_frame=None, scene=None, prefer=None, menus_seen={}, cur_node=None, node_t0=0.0,
                      stubs=set(), timers=None, wait=None, wait_node=None, wait_t0=0.0, nulls=set(),
                      stop_labels=None, trans=False, fx_screens=None, fx_files=None, hidden_text={}, dt=0.0,
-                     vclock=0.0, cap_anim=False, cap_peak=False, vis_prev=None, hidden_ids=set(), persist0=None)
+                     vclock=0.0, cap_anim=False, cap_peak=False, vis_prev=None, hidden_ids=set(), persist0=None,
+                     prof=None, raw_seen={})
 
     def _rc_rx(v):
         return _rc_re.compile(v) if v else None
@@ -196,6 +201,21 @@ init python:
         rv.extend("text:" + t for t in P.hidden_text.values())
         return sorted(set(rv))
 
+    def _rc_raw_digest(surf):
+        """sha1 of a screenshot's pixels, read where pygame_sdl2 keeps them: a picture this engine has already saved
+        is recognised before PNG compression, which costs several times more. The same pixels always compress to the
+        same PNG, so the frame file stays the same. None when the pixels cannot be read this way: then every picture
+        is compressed, as before."""
+        if _rc_ctypes is None:
+            return None
+        try:
+            size = surf.get_pitch() * surf.get_height()
+            h = _rc_hashlib.sha1((_rc_ctypes.c_char * size).from_address(surf._pixels_address))
+            h.update(repr((surf.get_size(), surf.get_pitch(), surf.get_bytesize())).encode("ascii"))
+            return h.digest()
+        except Exception:
+            return None
+
     def _rc_capture(iface, files=None):
         P = _rc_P
         ctx = renpy.game.context()
@@ -247,15 +267,33 @@ init python:
             rec["frame"] = P.last_frame
             rec["same"] = True
         else:
+            pr = P.prof
+            t0 = _rc_time.time()
             surf = renpy.display.draw.screenshot(iface.surftree)
-            with _rc_io.BytesIO() as sio:
-                renpy.display.module.save_png(surf, sio, 3)
-                png = sio.getvalue()
-            h = _rc_hashlib.sha1(png).hexdigest()
-            if h not in P.seen:
-                with open(_rc_os.path.join(P.out, "frames", h + ".png"), "wb") as f:
-                    f.write(png)
-                P.seen.add(h)
+            raw = _rc_raw_digest(surf)
+            t1 = _rc_time.time()
+            h = P.raw_seen.get(raw) if raw is not None else None
+            if h is not None:
+                pr["known"] += 1                       # these pixels were saved by this engine already: no PNG
+            else:
+                with _rc_io.BytesIO() as sio:
+                    renpy.display.module.save_png(surf, sio, 3)
+                    png = sio.getvalue()
+                t2 = _rc_time.time()
+                h = _rc_hashlib.sha1(png).hexdigest()
+                if h not in P.seen:
+                    with open(_rc_os.path.join(P.out, "frames", h + ".png"), "wb") as f:
+                        f.write(png)
+                    P.seen.add(h)
+                else:
+                    pr["dup"] += 1                     # saved before this engine started (an earlier launch)
+                if raw is not None:
+                    P.raw_seen[raw] = h
+                pr["encoded"] += 1
+                pr["png"] += t2 - t1
+                pr["save"] += _rc_time.time() - t2
+            pr["shots"] += 1
+            pr["shot"] += t1 - t0
             rec["frame"] = h
             P.last_key, P.last_frame = key, h
 
@@ -324,8 +362,12 @@ init python:
 
     def _rc_draw_screen(self, root_widget, fullscreen_video, draw):
         _rc_P.hidden_ids = set()                      # collected again while hidden screens render
+        t = _rc_time.time()
         _rc_orig_draw(self, root_widget, fullscreen_video, draw)
         P = _rc_P
+        if P.active:                                  # where the time goes (report prints it): frames drawn while
+            P.prof["frames"] += 1                     # a scene settles, and the time drawing them took
+            P.prof["draw"] += _rc_time.time() - t
         if P.dt:                                      # frame clock: a frame was drawn, game time moves one step on,
             P.vclock += P.dt                          # plus one PERIODIC event (normally sent by a real timer)
             try:
@@ -685,6 +727,8 @@ init python:
             t = job.get("ui_timers")                   # True: every interface screen; a string: the matching ones
             P.timers = _rc_re.compile(t) if isinstance(t, str) else bool(t)
             P.wait, P.wait_node = _rc_rx(job.get("wait_menus")), None
+            P.prof = {"frames": 0, "draw": 0.0, "shots": 0, "shot": 0.0, "known": 0, "encoded": 0, "dup": 0,
+                      "png": 0.0, "save": 0.0}
             P.t0 = _rc_time.time()
             _rc_emit({"ev": "start", "job": job["id"], "label": job["label"]})
             P.active = True
@@ -706,7 +750,8 @@ init python:
             finally:
                 P.active = False
             _rc_emit({"ev": "end", "job": job["id"], "steps": P.seq, "why": why,
-                      "seconds": round(_rc_time.time() - P.t0, 1)})
+                      "seconds": round(_rc_time.time() - P.t0, 1),
+                      "prof": dict((k, round(v, 3)) for k, v in P.prof.items())})
             with open(dpath, "a", encoding="utf-8") as f:
                 f.write(job["id"] + "\n")
         P.log.close()

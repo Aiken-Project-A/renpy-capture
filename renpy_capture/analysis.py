@@ -61,6 +61,16 @@ def report(out):
     if steps >= 20 and secs / steps > 2:            # a healthy engine takes a fraction of a second per interaction
         print(f'warning: {secs / steps:.1f} s per interaction is very slow; the GPU driver may be in a bad state '
               '(try --gpu mesa or --display xvfb)')
+    prof = collections.Counter()                    # where the time of the jobs went (captures since this field)
+    for r in recs:
+        if r['ev'] == 'end' and r.get('prof'):
+            prof.update(r['prof'])
+    if prof['frames']:
+        rest = secs - prof['draw'] - prof['shot'] - prof['png'] - prof['save']
+        print(f"time in jobs {secs:.0f} s: drawing {prof['frames']:.0f} frames {prof['draw']:.0f} s, "
+              f"{prof['shots']:.0f} screenshots {prof['shot']:.0f} s ({prof['known']:.0f} of them pictures this "
+              f"engine had saved, no PNG), PNG {prof['png']:.0f} s for {prof['encoded']:.0f} pictures, "
+              f"writing {prof['save']:.0f} s, the rest {rest:.0f} s")
 
 
 def forget(out, ids):

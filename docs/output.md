@@ -50,4 +50,7 @@ Every record has `ev` (the kind) and `job`.
 over it.
 
 **`end`** — a job finished: `steps`, `why` (`end`; `restart` when the game went back to its main menu;
-`exception: …`; `stall`), `seconds` (wall-clock time).
+`exception: …`; `stall`), `seconds` (wall-clock time), and `prof`, where that time went: `frames` drawn while scenes
+settled and `draw` (seconds spent drawing them), `shots` screenshots and `shot` (seconds), `known` screenshots whose
+pixels this engine had already saved (no PNG needed), `encoded` pictures compressed to PNG and `png` (seconds), `dup`
+of them already saved by an earlier launch, and `save` (seconds hashing and writing). `report` sums them up.
