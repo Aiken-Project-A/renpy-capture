@@ -1,0 +1,134 @@
+name: demo
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'renpy_capture/**'
+      - 'pyproject.toml'
+      - '.github/workflows/demo.yml'
+  pull_request:
+    paths:
+      - 'renpy_capture/**'
+      - 'pyproject.toml'
+      - '.github/workflows/demo.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up work paths
+        run: |
+          echo "WORK=$RUNNER_TEMP/demo" >> "$GITHUB_ENV"
+          echo "GAME=$RUNNER_TEMP/demo/the_question" >> "$GITHUB_ENV"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install Xvfb and Mesa
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri libegl1
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/renpy-capture/sdk
+          key: ${{ runner.os }}-renpy-sdk-8.3.2
+      - run: pip install .
+      - name: Fetch the Ren'Py SDK
+        run: renpy-capture sdk --renpy-version 8.3.2
+      - name: Copy the sample game out of the SDK
+        run: |
+          mkdir -p "$WORK"
+          python -c "
+          import os, shutil
+          sdk = os.path.expanduser('~/.cache/renpy-capture/sdk/renpy-8.3.2-sdk')
+          shutil.copytree(os.path.join(sdk, 'the_question'), os.environ['GAME'],
+                           ignore=shutil.ignore_patterns('saves', 'cache'))
+          "
+      - name: Write a starter config
+        run: renpy-capture init "$GAME" "$WORK/config.json"
+      - name: Make the launch folder
+        run: renpy-capture setup "$GAME" "$WORK/run" --renpy-version 8.3.2
+      - name: Capture every branch under Xvfb
+        run: renpy-capture explore "$WORK/run" "$WORK/config.json" "$WORK/out" --display xvfb
+      - name: Export the capture
+        run: renpy-capture export "$WORK/out" "$GAME" site/the-question
+      - name: Write the landing page
+        run: |
+          cat > site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>renpy-capture · live demo</title>
+          <style>
+          :root { --bg: #f6f5f2; --card: #fff; --ink: #222; --muted: #6b6b6b; --line: #e3e0da; --pick: #1f6feb; }
+          @media (prefers-color-scheme: dark) {
+            :root { --bg: #16171a; --card: #1f2125; --ink: #e8e6e3; --muted: #9a9a9a; --line: #2e3035; --pick: #6ea8ff; }
+          }
+          * { box-sizing: border-box; }
+          body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 system-ui, sans-serif; }
+          main { max-width: 640px; margin: auto; padding: 56px 20px; }
+          .kicker { color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-size: 12px; margin: 0 0 8px; }
+          h1 { font-size: 28px; margin: 0 0 16px; }
+          p { margin: 0 0 18px; }
+          .links { list-style: none; padding: 0; margin: 0 0 32px; border: 1px solid var(--line); border-radius: 8px;
+                   background: var(--card); overflow: hidden; }
+          .links li + li { border-top: 1px solid var(--line); }
+          .links a { display: block; padding: 14px 16px; color: var(--pick); text-decoration: none; font-weight: 600; }
+          .links a:hover { text-decoration: underline; }
+          .links span { display: block; color: var(--muted); font-weight: 400; font-size: 14px; margin-top: 2px; }
+          footer { color: var(--muted); font-size: 13px; }
+          a { color: var(--pick); }
+          </style>
+          </head>
+          <body>
+          <main>
+          <p class="kicker">Live demo</p>
+          <h1>renpy-capture</h1>
+          <p>renpy-capture is a Linux command-line tool that plays a Ren'Py visual novel with the official Ren'Py SDK on a
+          virtual screen and saves a screenshot of every line, in every branch, taken by the game's own engine.</p>
+
+          <ul class="links">
+            <li><a href="the-question/index.html">See the whole result for The Question
+              <span>Every scene of every branch, as a page to read like a book</span></a></li>
+            <li><a href="the-question/shots.tsv">Every interaction as a table
+              <span>shots.tsv — job, line, speaker, text, picture</span></a></li>
+            <li><a href="https://github.com/Aiken-Project-A/renpy-capture">renpy-capture on GitHub
+              <span>Source, README, and how to run it on your own game</span></a></li>
+          </ul>
+
+          <footer>
+            <p>The Question is the sample game that ships with the Ren'Py SDK; its artwork is released under the MIT license,
+            like Ren'Py.</p>
+          </footer>
+          </main>
+          </body>
+          </html>
+          HTML
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
