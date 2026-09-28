@@ -161,6 +161,9 @@ chosen by flags set much earlier can be captured with exact jobs (`gaps` tells w
   differ in pixels only: `compare --states-only`.
 - **A job stops early.** `report` tells why: a script error (`ignore_errors` steps over an author's typo), a hub label
   (`stop_labels`), a loop (`loop_limit`), or the watchdog (`--stall`).
+- **A timed menu was answered instead of timing out.** `report` warns when `wait_max` had to answer a menu of
+  `wait_menus`: the game's timer lives on an interface screen (let it run with `ui_timers`) or needs longer
+  (`wait_max`).
 - **Something is on screen that should not be, or missing.** `export`'s `index.html` shows every picture; the log
   record of a line lists the images, screens and files that make it (`shown`, `screens`, `files`).
 
@@ -177,6 +180,7 @@ chosen by flags set much earlier can be captured with exact jobs (`gaps` tells w
 ```sh
 python -m unittest discover -s tests -t .                        # unit tests: no engine, no network
 RENPY_CAPTURE_IT=1 python -m unittest tests.test_the_question    # end to end on The Question (downloads the SDK once)
+RENPY_CAPTURE_IT=1 python -m unittest tests.test_torture         # end to end on the Torture Test (tests/games)
 ```
 
 ## Be kind to the authors
