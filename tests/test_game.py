@@ -5,7 +5,7 @@ import tempfile
 import unittest
 
 from renpy_capture import runner
-from renpy_capture.game import Game, engine_version, game_dir
+from renpy_capture.game import Game, engine_hint, engine_version, game_dir
 
 from .rpatool import write_rpa
 
@@ -36,6 +36,31 @@ class GameTest(unittest.TestCase):
 
     def test_engine_version(self):
         self.assertEqual(engine_version(self.root), '8.2.3')
+
+    def test_engine_version_of_renpy_7(self):
+        with open(os.path.join(self.root, 'renpy', 'vc_version.py'), 'w') as f:     # Python 2 writes u'…'
+            f.write("branch = u'fix'\nnightly = False\nversion = u'7.8.7.25031702'\n")
+        self.assertEqual(engine_version(self.root), '7.8.7')
+
+    def test_a_project_inside_an_sdk_runs_on_it(self):
+        sdk = os.path.join(self.tmp.name, 'renpy-8.3.2-sdk')
+        os.makedirs(os.path.join(sdk, 'renpy'))
+        os.makedirs(os.path.join(sdk, 'the_question', 'game', 'cache'))
+        with open(os.path.join(sdk, 'renpy', 'vc_version.py'), 'w') as f:
+            f.write("branch = 'fix'\nversion = '8.3.2.24090902'\n")
+        open(os.path.join(sdk, 'the_question', 'game', 'script.rpy'), 'w').close()
+        self.assertEqual(engine_version(os.path.join(sdk, 'the_question')), '8.3.2')
+
+    def test_no_engine_anywhere_gives_a_hint(self):
+        game = os.path.join(self.tmp.name, 'Projects', 'mine')
+        os.makedirs(os.path.join(game, 'game', 'cache'))
+        open(os.path.join(game, 'game', 'cache', 'bytecode-27.rpyb'), 'wb').close()
+        open(os.path.join(game, 'game', 'script.rpy'), 'w').close()
+        self.assertIsNone(engine_version(game))
+        self.assertIn("Ren'Py 7", engine_hint(game))
+        with self.assertRaises(SystemExit) as e:
+            runner.setup(game, os.path.join(self.tmp.name, 'run'))
+        self.assertIn("Ren'Py 7", str(e.exception))
 
     def test_loose_files_win_and_mods_are_left_out(self):
         g = Game(self.root)

@@ -43,20 +43,39 @@ def game_dir(path):
     raise ValueError(f"{path}: no Ren'Py game here (a folder whose game/ holds .rpy, .rpyc or .rpa files)")
 
 
-def engine_version(game):
-    """The version of the engine bundled with the game, e.g. '8.2.3', or None when it cannot be told."""
-    root = os.path.dirname(game_dir(game))
-    p = os.path.join(root, 'renpy', 'vc_version.py')
+def _engine_in(base):
+    p = os.path.join(base, 'renpy', 'vc_version.py')
     if os.path.exists(p):
-        m = re.search(r"^version\s*=\s*'(\d+(?:\.\d+)+)", read_text(p, errors='replace'), re.M)
+        m = re.search(r"^version\s*=\s*u?['\"](\d+(?:\.\d+)+)", read_text(p, errors='replace'), re.M)   # u'…': Py 2
         if m:
             return '.'.join(m.group(1).split('.')[:3])
-    p = os.path.join(root, 'renpy', '__init__.py')           # Ren'Py 7 and older: version_tuple = (7, 4, 11, vc)
+    p = os.path.join(base, 'renpy', '__init__.py')           # Ren'Py 7 and older: version_tuple = (7, 4, 11, vc)
     if os.path.exists(p):
         m = re.search(r'^version_tuple\s*=\s*\((\d+),\s*(\d+),\s*(\d+)', read_text(p, errors='replace'), re.M)
         if m:
             return '.'.join(m.groups())
     return None
+
+
+def engine_version(game):
+    """The version of the engine bundled with the game, e.g. '8.2.3', or None when it cannot be told. A project
+    without an engine of its own inside a Ren'Py SDK folder (the SDK's sample games, an author's projects) runs on
+    that SDK: its version."""
+    root = os.path.dirname(game_dir(game))
+    return _engine_in(root) or _engine_in(os.path.dirname(root))
+
+
+def engine_hint(game):
+    """What the game's own cache tells of the engine that ran it last (bytecode-39.rpyb: Ren'Py 8 on Python 3.9), or
+    ''. A hint for choosing --renpy-version, not a version."""
+    cache = os.path.join(game_dir(game), 'cache')
+    names = sorted(os.listdir(cache)) if os.path.isdir(cache) else []
+    for n in names:
+        m = re.fullmatch(r'bytecode-(\d)(\d+)\.rpyb', n)
+        if m:
+            major = '7' if m.group(1) == '2' else '8'
+            return f"its cache was made by Ren'Py {major} (Python {m.group(1)}.{m.group(2)}, {n})"
+    return ''
 
 
 class Game:

@@ -14,7 +14,7 @@ import traceback
 
 from . import sdk as sdkmod
 from .analysis import report
-from .game import MODS, engine_version, game_dir
+from .game import MODS, engine_hint, engine_version, game_dir
 from .util import read_bytes, read_json, read_jsonl, read_text
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -49,7 +49,9 @@ def setup(game, rundir, version=None, sdk_dir=None, exclude=None):
                          'choose an empty launch folder')
     version = version or engine_version(game)
     if not version and not sdk_dir:
-        raise SystemExit("cannot tell the game's Ren'Py version: pass --renpy-version (or --sdk)")
+        hint = engine_hint(game)
+        raise SystemExit("cannot tell the game's Ren'Py version: pass --renpy-version (or --sdk)"
+                         + (f'; {hint}' if hint else ''))
     os.makedirs(os.path.join(rundir, 'home'), exist_ok=True)
     stub = os.path.join(rundir, 'bin')              # a crashing engine opens traceback.txt with xdg-open: no editor
     os.makedirs(stub, exist_ok=True)                # windows pop up on the user's desktop
