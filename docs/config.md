@@ -81,6 +81,7 @@ expressions and match anywhere in the string (`re.search`) unless stated otherwi
 | `prefer` | A regex on menu captions: without a planned choice, take the first option that matches (e.g. "Skip the mini-game"). |
 | `stub_screens` | `{screen: value}`: the screen returns `value` at once, as if the mini-game was won. |
 | `persistent` | `{field: value}` set in the persistent data at start (tutorials seen, options unlocked). Every launch starts from the default persistent data otherwise. |
+| `language` | Capture a translation: the language as its folder `game/tl/<language>` is named (`"russian"`). The engine starts in that language; a translated line keeps the `file` and `line` of the line it translates, so `compare` and `gaps` work across languages. The `--language` option overrides it. |
 
 ## Machine
 

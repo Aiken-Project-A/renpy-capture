@@ -100,6 +100,36 @@ class TheQuestion(unittest.TestCase):
                  for o in (out, fast)]
         self.assertLess(drawn[1], drawn[0])
 
+    def test_a_translation_takes_the_same_course(self):
+        """The Question ships a Russian translation. Captured in it, every line keeps the script place, label and
+        translation id of the original, its text and the place of the text come from game/tl/russian, and the scenes
+        are the same to the byte (the text is not part of the frame)."""
+        game, cfg, rundir, out = self.out['loose']
+        ru = out + '-russian'
+        with contextlib.redirect_stdout(io.StringIO()):
+            runner.run(rundir, cfg, ru, display=DISPLAY, gpu=GPU, language='russian')
+        self.compare(out, ru)
+        recs = read_jsonl(os.path.join(ru, 'log.jsonl'))
+        self.assertEqual({r.get('language') for r in recs if r['ev'] == 'start'}, {'russian'})
+        en = [r for r in self.records('loose') if r['ev'] == 'shot']
+        tr = {(r['job'], r['seq']): r for r in recs if r['ev'] == 'shot'}
+        says = 0
+        for a in en:
+            b = tr[a['job'], a['seq']]
+            self.assertEqual([b.get(k) for k in ('file', 'line', 'label', 'tl')],
+                             [a.get(k) for k in ('file', 'line', 'label', 'tl')])
+            if a.get('tl'):
+                says += 1
+                self.assertIsNone(a.get('tl_file'))
+                self.assertTrue(b['tl_file'].startswith('game/tl/russian/'), b)
+                self.assertRegex(b['what'], '[А-Яа-я]')
+        self.assertGreater(says, 50)
+
+    def test_a_language_the_game_does_not_have(self):
+        game, cfg, rundir, out = self.out['loose']
+        with self.assertRaises(SystemExit):
+            runner.run(rundir, cfg, out + '-klingon', display=DISPLAY, gpu=GPU, language='klingon')
+
     def test_export(self):
         game, cfg, _rundir, out = self.out['packed']
         dest = os.path.join(self.tmp, 'export')

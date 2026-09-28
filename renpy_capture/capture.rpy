@@ -266,6 +266,16 @@ init python:
                     rec["name"] = renpy.substitute(n) if isinstance(n, str) else str(n)
             except Exception:
                 pass
+            ident = getattr(node, "identifier", None) or ctx.translate_identifier    # the line's translation id
+            if ident:
+                rec["tl"] = ident
+                try:
+                    orig = renpy.game.script.translator.default_translates.get(ident)
+                except Exception:
+                    orig = None
+                if orig is not None and orig.filename != rec["file"]:   # a translation is shown: the line keeps the
+                    rec["tl_file"], rec["tl_line"] = rec["file"], rec["line"]   # place of the line it translates
+                    rec["file"], rec["line"] = orig.filename, orig.linenumber
         if P.pause_delay is not None:
             rec["pause"] = P.pause_delay
         stack = []                                 # return points of the calls (lines in the calling labels): a frame
@@ -783,7 +793,10 @@ init python:
             P.prof = {"frames": 0, "draw": 0.0, "shots": 0, "shot": 0.0, "known": 0, "encoded": 0, "dup": 0,
                       "png": 0.0, "save": 0.0}
             P.t0 = _rc_time.time()
-            _rc_emit({"ev": "start", "job": job["id"], "label": job["label"]})
+            start = {"ev": "start", "job": job["id"], "label": job["label"]}
+            if _preferences.language:
+                start["language"] = _preferences.language
+            _rc_emit(start)
             P.active = True
             try:
                 renpy.call_replay("_rc_job", scope=dict(job.get("scope", {})))

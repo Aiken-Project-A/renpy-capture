@@ -306,11 +306,12 @@ def export(out, game, dest, opts=None, page=True):
         shots.append({'job': r['job'], 'step': r['seq'], 'file': fn, 'line': r.get('line'), 'label': lab,
                       'statement': r.get('kind') or '', 'who': r.get('who') or '', 'name': r.get('name') or '',
                       'what': r.get('what') or '', 'frame': h or '', 'cg': name, 'skip': 'skip' if r.get('skip') else '',
-                      'effects': ' | '.join(effs), 'menu': opts_txt})
+                      'effects': ' | '.join(effs), 'menu': opts_txt, 'tl': r.get('tl') or '',
+                      'tl_file': script_path(r.get('tl_file')) or '', 'tl_line': r.get('tl_line') or ''})
         if h:
             _place(frame_path(h), os.path.join(dest, 'frames', h + '.png'))
     cols = ['job', 'step', 'file', 'line', 'label', 'statement', 'who', 'name', 'what', 'frame', 'cg', 'skip',
-            'effects', 'menu']
+            'effects', 'menu', 'tl', 'tl_file', 'tl_line']
     with open(os.path.join(dest, 'shots.tsv'), 'w', encoding='utf-8') as f:
         f.write('\t'.join(cols) + '\n')
         for s in shots:
@@ -391,7 +392,9 @@ def write_page(dest, shots, title):
                    else '<div class="noimg">no frame (skipped)</div>')
             body = []
             for s in lines:
-                meta = f'<span class="meta">{esc(s["file"])}:{s["line"]} · {esc(s["statement"])}</span>'
+                tl = (f' · {esc(s["tl_file"])}:{s["tl_line"]}' if s['tl_file'] else '') + \
+                     (f' · {esc(s["tl"])}' if s['tl'] else '')        # a translator finds the line by its id
+                meta = f'<span class="meta">{esc(s["file"])}:{s["line"]} · {esc(s["statement"])}{tl}</span>'
                 if s['menu']:
                     lis = ''.join(f'<li class="pick">{esc(o[2:])}</li>' if o.startswith('» ') else f'<li>{esc(o)}</li>'
                                   for o in s['menu'].split(' | '))

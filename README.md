@@ -22,8 +22,9 @@ See the whole result for The Question: https://aiken-project-a.github.io/renpy-c
 ## Who it helps
 
 - **Translators.** A line in a spreadsheet does not tell who speaks, to whom, or what is on screen; here every line
-  comes with its scene. After translating, capture the translated game and look through every line of every branch —
-  text that does not fit the window, a font without the glyphs — in minutes instead of hours of clicking.
+  comes with its scene and its translation id. Capture the translation too (`--language russian`): every translated
+  line of every branch in its scene, and `compare` with the original shows that the translation takes the game the
+  same way — in minutes instead of hours of clicking.
 - **Authors and testers.** Capture the game before and after a change: `compare` names the first line where a scene
   differs. `gaps` lists the scene and show lines that no path through the game reaches — a branch behind a flag that
   is never set.

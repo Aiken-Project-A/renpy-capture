@@ -16,7 +16,7 @@
 
 Every record has `ev` (the kind) and `job`.
 
-**`start`** — a job began: `label`.
+**`start`** — a job began: `label`, and `language` when a translation is captured.
 
 **`shot`** — an interaction was captured:
 
@@ -27,6 +27,8 @@ Every record has `ev` (the kind) and `job`.
 | `file`, `line` | Where the statement is in the scripts (`game/script.rpy`, 120). |
 | `label`, `at` | The label the statement belongs to in the script, as Ren'Py names lines for translation: the last story label above it in its file (not starting with `_`) and the last label of any kind. After a `call` returns, the lines are the caller's again; a line of a translation (`tl/`) has the label of the line it translates. |
 | `who`, `name`, `what` | For lines of dialogue: the speaker as written in the script, the name the player sees, and the text as written (with its text tags and `[variables]`). |
+| `tl` | For lines of dialogue: the line's translation id (`start_636ae3f5`), as `translate <language> <id>:` names it in the files of `game/tl/`. |
+| `tl_file`, `tl_line` | When a translation is shown: where its text is (`game/tl/russian/script.rpy`, 40); `file` and `line` stay those of the line it translates. |
 | `menu` | For menus: `n` (the menu's number in the job), `options` (the captions) and `pick` (the option taken), or `wait: true` when the capture waited on it. |
 | `pause` | The length of the pause, for pauses. |
 | `stack` | Return points of the calls in progress (`[file, line]`, innermost last). |

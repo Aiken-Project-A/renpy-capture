@@ -310,7 +310,8 @@ def _parse_size(v):
     return int(v[0]), int(v[1])
 
 
-def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, screen=None, fast=False):
+def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, screen=None, fast=False,
+        language=None):
     """Run the jobs of a config in one engine. A watchdog restarts the engine when the log has not grown for
     ``stall`` seconds (a hung job is recorded and skipped); an interrupted run continues from the first job that
     is not done."""
@@ -339,6 +340,12 @@ def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, 
     if egl:
         env['__EGL_VENDOR_LIBRARY_FILENAMES'] = egl
         env['__GLX_VENDOR_LIBRARY_NAME'] = 'nvidia' if gpu == 'nvidia' else 'mesa'
+    language = language or cfg.get('language')
+    if language:                                    # the engine starts in this language (a folder game/tl/<name>)
+        tl = os.path.join(game_dir(info['game']), 'tl', language)
+        if not os.path.isdir(tl):
+            raise SystemExit(f"language {language!r}: the game has no {tl}")
+        env['RENPY_LANGUAGE'] = language
     env.update(disp.env)
     # Live2D: the SDK from renpy.org has no Cubism Core (Live2D licenses it), a game with Live2D ships it in its own
     # lib/, and the engine looks for it next to itself, then by name: a folder with one link to the game's core
@@ -453,7 +460,8 @@ def healthy(recs):
     return len(contents) < 20 or len(frames) >= 0.4 * len(contents)
 
 
-def prun(rundir, cfg_path, out, workers=4, timewarp=4.0, batch=8, display=None, gpu=None, screen=None, fast=False):
+def prun(rundir, cfg_path, out, workers=4, timewarp=4.0, batch=8, display=None, gpu=None, screen=None, fast=False,
+         language=None):
     """Jobs on several engines at once. A worker has its own launch folder (<rundir>-wN: links to the same game,
     its own saves and HOME) and its own display. It takes a batch of jobs from the common queue (up to ``batch``; the
     tail of the queue is shared evenly) and runs it in one engine, so the display and the game do not start again
@@ -501,7 +509,7 @@ def prun(rundir, cfg_path, out, workers=4, timewarp=4.0, batch=8, display=None, 
             wcfg = os.path.join(wout, 'cfg.json')
             with open(wcfg, 'w', encoding='utf-8') as f:
                 json.dump(dict(cfg, jobs=jobs), f, ensure_ascii=False)
-            run(rd, wcfg, wout, timewarp, display=display, gpu=gpu, screen=screen, fast=fast)
+            run(rd, wcfg, wout, timewarp, display=display, gpu=gpu, screen=screen, fast=fast, language=language)
             lp = os.path.join(wout, 'log.jsonl')
             recs = read_jsonl(lp) if os.path.exists(lp) else []
             by = collections.defaultdict(list)
@@ -543,16 +551,16 @@ def prun(rundir, cfg_path, out, workers=4, timewarp=4.0, batch=8, display=None, 
 
 
 def explore(rundir, cfg_path, out, rounds=10, timewarp=4.0, limit=600, workers=1, batch=8, display=None, gpu=None,
-            screen=None, fast=False):
+            screen=None, fast=False, language=None):
     """Rounds until the branches run out: every option of every menu met (file:line) is taken at least once. A new
     job repeats the choices made before that menu in a finished job, takes an option not taken yet, and then the
     first options. New jobs are added to the config (id "<job>~<choices>")."""
     cfg = read_json(cfg_path)
     for rnd in range(rounds):
         if workers > 1:
-            prun(rundir, cfg_path, out, workers, timewarp, batch, display, gpu, screen, fast)
+            prun(rundir, cfg_path, out, workers, timewarp, batch, display, gpu, screen, fast, language)
         else:
-            run(rundir, cfg_path, out, timewarp, display=display, gpu=gpu, screen=screen, fast=fast)
+            run(rundir, cfg_path, out, timewarp, display=display, gpu=gpu, screen=screen, fast=fast, language=language)
         seen, menus = set(), collections.defaultdict(list)
         looped = set()                              # stopped as a loop: a mini-game gauge moved by screen timers,
         for r in read_jsonl(os.path.join(out, 'log.jsonl')):           # retried with the timers running

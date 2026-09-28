@@ -25,6 +25,8 @@ def main(argv=None):
         p.add_argument('--fast', action='store_true',
                        help='skip the frames drawn while a scene settles: the same scenes, faster on animated '
                             'games, but animations may be caught in another phase than without it')
+        p.add_argument('--language', help="capture a translation: the language as its folder game/tl/<language> is "
+                                          "named (default: the game's own language)")
 
     p = sub.add_parser('init', help='write a starter config for a game')
     p.add_argument('game')
@@ -116,14 +118,16 @@ def dispatch(a):
         setup(a.game, a.rundir, a.renpy_version, a.sdk, a.exclude)
     elif a.cmd == 'run':
         from .runner import run
-        run(a.rundir, a.config, a.out, a.timewarp, a.stall, a.display, a.gpu, a.screen, fast=a.fast)
+        run(a.rundir, a.config, a.out, a.timewarp, a.stall, a.display, a.gpu, a.screen, fast=a.fast,
+            language=a.language)
     elif a.cmd == 'prun':
         from .runner import prun
-        prun(a.rundir, a.config, a.out, a.workers, a.timewarp, a.batch, a.display, a.gpu, a.screen, fast=a.fast)
+        prun(a.rundir, a.config, a.out, a.workers, a.timewarp, a.batch, a.display, a.gpu, a.screen, fast=a.fast,
+             language=a.language)
     elif a.cmd == 'explore':
         from .runner import explore
         explore(a.rundir, a.config, a.out, a.rounds, a.timewarp, a.limit, a.workers, a.batch, a.display, a.gpu,
-                a.screen, fast=a.fast)
+                a.screen, fast=a.fast, language=a.language)
     elif a.cmd == 'report':
         from .analysis import report
         report(a.out)
