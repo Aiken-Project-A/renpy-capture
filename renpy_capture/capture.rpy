@@ -66,7 +66,7 @@ init python:
                      stubs=set(), timers=None, wait=None, wait_node=None, wait_t0=0.0, nulls=set(),
                      stop_labels=None, trans=False, fx_screens=None, fx_files=None, hidden_text={}, dt=0.0,
                      vclock=0.0, cap_anim=False, cap_peak=False, vis_prev=None, hidden_ids=set(), persist0=None,
-                     prof=None, raw_seen={})
+                     prof=None, raw_seen={}, fast=False)
 
     def _rc_rx(v):
         return _rc_re.compile(v) if v else None
@@ -360,6 +360,19 @@ init python:
                 t = getattr(t, "child", None)
         return any(id(d) in rc and id(d) not in hid for _when, d in renpy.display.render.redraw_queue)
 
+    def _rc_skip(waiting):
+        """Fast mode: the frames a wait would draw are skipped, the clock goes on step by step (the same values as
+        drawing them) to the first one that would end the wait; only the frames where a decision is taken are drawn.
+        A motion that stops between two such frames is seen later, so the capture is taken later and later animations
+        run in another phase than in the exact mode; the scenes are the same."""
+        P = _rc_P
+        if P.timers or P.wait is not None:            # screen timers tick once per drawn frame: a job that lets them
+            return                                    # run (a mini-game, a timed menu) keeps every frame
+        for _i in range(100000):
+            if not waiting(P.vclock):
+                break
+            P.vclock += P.dt
+
     def _rc_draw_screen(self, root_widget, fullscreen_video, draw):
         _rc_P.hidden_ids = set()                      # collected again while hidden screens render
         t = _rc_time.time()
@@ -404,10 +417,14 @@ init python:
             delay = max([getattr(v, "delay", 0) or 0 for v in (getattr(self, "instantiated_transition", None)
                                                               or {}).values()]      # shows through a chain of
                         + [v or 0 for v in (getattr(self, "transition_delay", None) or {}).values()] + [0])   # show …
+            tmax = P.job.get("trans_max", P.cfg.get("trans_max", 8))
             if tt and delay and self.frame_time - min(tt) < delay and \
-                    self.frame_time - start < P.job.get("trans_max", P.cfg.get("trans_max", 8)):   # with become
+                    self.frame_time - start < tmax:                                              # with become
                 self.force_redraw = True                                                         # frames, not a
-                return                                                                           # blend of two
+                if P.fast:                                                                       # blend of two
+                    t0 = min(tt)
+                    _rc_skip(lambda t: t - t0 < delay and t - start < tmax)
+                return
         if P.cfg.get("early", True) and P.last_frame and not _rc_animating():
             ctx = renpy.game.context()                # the scene is made of the same things as at the last capture
             files = _rc_files(ctx)                    # and nothing moves: the frame is the same, capture at once
@@ -431,7 +448,10 @@ init python:
             P.vis_prev = vis
         if elapsed < need or (elapsed < most and moving):
             self.force_redraw = True                 # a one-shot ATL effect (a two-second fade) is still running —
-            return                                   # wait; an endless one (shaking, blinking) — until settle_max
+            if P.fast:                               # wait; an endless one (shaking, blinking) — until settle_max
+                wait = need if elapsed < need else most
+                _rc_skip(lambda t: t - start < wait)
+            return
         P.cur_node = None
         P.cap_anim = moving                          # captured in the middle of an endless animation (the phase is
         P.cap_peak = False                           # fixed by the frame clock)
@@ -688,6 +708,7 @@ init python:
         P.drop = _rc_rx(cfg.get("drop"))
         P.stop = _rc_rx(cfg.get("stop_files"))
         P.stop_labels = _rc_rx(cfg.get("stop_labels"))
+        P.fast = bool(cfg.get("fast") or _rc_os.environ.get("RENPY_CAPTURE_FAST") == "1") and bool(P.dt)   # (--fast)
         P.settle = cfg.get("settle", 1.0)
         P.settle_max = max(P.settle, cfg.get("settle_max", P.settle))
         P.max_steps = cfg.get("max_steps", 3000)

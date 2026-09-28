@@ -1,6 +1,6 @@
 """End to end on "The Question", the sample game every Ren'Py SDK ships: capture it loose and packed into an
-archive, check that nothing is left uncaptured, that a second run is identical to the byte, and that the export
-holds every line.
+archive, check that nothing is left uncaptured, that a second run is identical to the byte, that fast mode draws
+fewer frames for the same pictures, and that the export holds every line.
 
 Opt-in (it downloads the SDK once and needs a display backend): RENPY_CAPTURE_IT=1 python -m unittest
 tests.test_the_question. RENPY_CAPTURE_IT_VERSION picks the SDK (default 8.3.2), RENPY_CAPTURE_IT_DISPLAY and
@@ -89,6 +89,16 @@ class TheQuestion(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             runner.run(rundir, cfg, again, display=DISPLAY, gpu=GPU)
         self.compare(out, again)
+
+    def test_fast_mode_gives_the_same_frames(self):
+        game, cfg, rundir, out = self.out['loose']              # no endless animation here: skipping the frames
+        fast = out + '-fast'                                    # of a settling scene must change nothing
+        with contextlib.redirect_stdout(io.StringIO()):
+            runner.run(rundir, cfg, fast, display=DISPLAY, gpu=GPU, fast=True)
+        self.compare(out, fast)
+        drawn = [sum(r['prof']['frames'] for r in read_jsonl(os.path.join(o, 'log.jsonl')) if r['ev'] == 'end')
+                 for o in (out, fast)]
+        self.assertLess(drawn[1], drawn[0])
 
     def test_export(self):
         game, cfg, _rundir, out = self.out['packed']

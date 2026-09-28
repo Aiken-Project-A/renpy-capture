@@ -106,6 +106,10 @@ xdg-open export/index.html
 With a GPU and enough memory, `explore --workers 4` runs four engines at once. `renpy-capture <command> --help`
 describes every option. SDKs are kept in `~/.cache/renpy-capture/sdk` (`RENPY_CAPTURE_SDK` puts them elsewhere).
 
+`--fast` draws only the frames where the capture decides, not every frame of a settling scene: on animated games it
+can be up to twice as fast. The scenes and the course of the game stay the same, but an animation can be caught in
+another phase than without `--fast`, so compare runs made the same way. `report` shows where the time went.
+
 ## What you get
 
 - `out/frames/<sha1>.png` — every distinct picture, once.
