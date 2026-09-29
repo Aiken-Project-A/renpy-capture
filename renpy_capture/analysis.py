@@ -1,6 +1,8 @@
 """Reading a capture: a summary, a comparison of two runs, forgetting jobs, and the lines no job has reached."""
+import ast
 import collections
 import json
+import operator
 import os
 import re
 
@@ -166,6 +168,62 @@ def compare(a, b, frames=True):
     return bad == 0 and not only
 
 
+class _Unknown(Exception):
+    """A name that gaps_scope does not set."""
+
+
+_COMPARE = {ast.Eq: operator.eq, ast.NotEq: operator.ne, ast.Lt: operator.lt, ast.LtE: operator.le,
+            ast.Gt: operator.gt, ast.GtE: operator.ge, ast.Is: operator.is_, ast.IsNot: operator.is_not,
+            ast.In: lambda a, b: a in b, ast.NotIn: lambda a, b: a not in b}
+
+
+def _evaluate(expr, scope):
+    """The value of a condition of a script, from the names of ``scope`` alone. The text is the game's, not ours: it
+    is never handed to eval (a crafted condition would run on the machine of whoever runs `gaps`); only names,
+    constants, comparisons, and/or/not, arithmetic and subscripts are computed, anything else raises ValueError
+    (undecided). A name that is not in ``scope`` raises _Unknown."""
+    def go(n):
+        if isinstance(n, ast.Constant):
+            return n.value
+        if isinstance(n, ast.Name):
+            if n.id not in scope:
+                raise _Unknown(n.id)
+            return scope[n.id]
+        if isinstance(n, ast.BoolOp):
+            for v in n.values:
+                r = go(v)
+                if bool(r) == isinstance(n.op, ast.Or):
+                    break
+            return r
+        if isinstance(n, ast.UnaryOp) and isinstance(n.op, (ast.Not, ast.USub, ast.UAdd)):
+            r = go(n.operand)
+            return not r if isinstance(n.op, ast.Not) else -r if isinstance(n.op, ast.USub) else +r
+        if isinstance(n, ast.Compare) and all(type(o) in _COMPARE for o in n.ops):
+            left = go(n.left)
+            for op, right in zip(n.ops, n.comparators):
+                right = go(right)
+                if not _COMPARE[type(op)](left, right):
+                    return False
+                left = right
+            return True
+        if isinstance(n, ast.BinOp) and isinstance(n.op, (ast.Add, ast.Sub, ast.Mult)):
+            a, b = go(n.left), go(n.right)
+            if isinstance(n.op, ast.Mult):          # "x" * 10**9 would eat the memory: numbers only
+                if not all(isinstance(v, (int, float)) for v in (a, b)):
+                    raise ValueError('a product of things that are not numbers')
+                return a * b
+            return a + b if isinstance(n.op, ast.Add) else a - b
+        if isinstance(n, ast.IfExp):
+            return go(n.body) if go(n.test) else go(n.orelse)
+        if isinstance(n, ast.Subscript):
+            return go(n.value)[go(n.slice)]
+        if isinstance(n, (ast.Tuple, ast.List, ast.Set)):
+            return [go(e) for e in n.elts] if isinstance(n, ast.List) else \
+                tuple(go(e) for e in n.elts) if isinstance(n, ast.Tuple) else {go(e) for e in n.elts}
+        raise ValueError(f'not a condition gaps_scope can decide: {type(n).__name__}')
+    return go(ast.parse(expr.strip(), mode='eval').body)
+
+
 GAP_LABEL = re.compile(r'^(\s*)label\s+([A-Za-z_][\w.]*)')
 GAP_SAY = re.compile(r'^\s*(?:[A-Za-z_]\w*\s+)*"[^"]')
 GAP_STMT = re.compile(r'^\s*(play|queue|stop|voice|sound|music|show|scene|hide|with|window|pause|jump|call|return|'
@@ -190,25 +248,18 @@ def gaps(game, cfg_path, out, show=True):
     skip = re.compile(cfg['gaps_skip']) if cfg.get('gaps_skip') else None
     scope = dict(cfg.get('gaps_scope') or {})
 
-    class Unknown(Exception):
-        pass
-
-    class Env(dict):
-        def __missing__(self, k):
-            raise Unknown(k)
-
     names = re.compile(r'\b(' + '|'.join(map(re.escape, scope)) + r')\b') if scope else None
 
     def value(cond):                                # True/False if gaps_scope alone decides it, otherwise None
         if names is None or not names.search(cond):
             return None
         try:
-            return bool(eval(cond, {'__builtins__': {}}, Env(scope)))
-        except Unknown:                             # "b and x" is false for any x, "a or x" is true
+            return bool(_evaluate(cond, scope))
+        except _Unknown:                            # "b and x" is false for any x, "a or x" is true
             rest = re.sub(r'\b(?!(?:' + '|'.join(map(re.escape, scope)) + r')\b)[A-Za-z_]\w*(?:\.\w+)*\b(?!\s*\()',
                           'None', cond)
             try:
-                return bool(eval(rest, {'__builtins__': {}}, Env(scope)))
+                return bool(_evaluate(rest, scope))
             except Exception:
                 return None
         except Exception:
