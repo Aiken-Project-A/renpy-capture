@@ -164,7 +164,8 @@ def compare(a, b, frames=True):
     print(f'jobs {len(common)}, captures {total}: ' + (f'same frame {same}, another animation phase {anim}, '
                                                           if frames else f'same scene state {same}, ')
           + f'mismatches {bad}' + (f'; only in one run: {", ".join(only)}' if only else ''))
-    print(f'job time: {sum(ta[j] for j in common):.0f} s / {sum(tb[j] for j in common):.0f} s')
+    secs = [sum(t.get(j, 0) for j in common) for t in (ta, tb)]      # a job the engine died in has no end
+    print(f'job time: {secs[0]:.0f} s / {secs[1]:.0f} s')
     return bad == 0 and not only
 
 

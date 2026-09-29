@@ -61,6 +61,43 @@ class GapsScopeTest(unittest.TestCase):
         self.assertFalse(os.path.exists(marker))
 
 
+class CompareTest(unittest.TestCase):
+    def out(self, recs):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        with open(os.path.join(d.name, 'log.jsonl'), 'w', encoding='utf-8') as f:
+            for r in recs:
+                f.write(json.dumps(r) + '\n')
+        return d.name
+
+    def compare(self, a, b, **kw):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            return analysis.compare(a, b, **kw), buf.getvalue()
+
+    def test_a_job_without_an_end_is_compared_too(self):
+        """An engine that died mid-job leaves shots and no `end`: that is when two runs are compared most."""
+        a = self.out([shot(1, 10)])
+        ok, text = self.compare(a, self.out([shot(1, 10)]))
+        self.assertTrue(ok, text)
+        self.assertIn('job time: 0 s / 0 s', text)
+
+    def test_the_same_run_matches_and_another_scene_does_not(self):
+        a = self.out([shot(1, 10), shot(2, 12)])
+        ok, text = self.compare(a, self.out([shot(1, 10), shot(2, 12)]))
+        self.assertTrue(ok, text)
+        ok, text = self.compare(a, self.out([shot(1, 10), shot(2, 14)]))
+        self.assertFalse(ok)
+        self.assertIn('scene state', text)
+
+    def test_a_different_frame_of_a_scene_at_rest_counts_but_of_an_animation_does_not(self):
+        def framed(frame, **kw):
+            return [dict(shot(1, 10), frame=frame, **kw)]
+        self.assertFalse(self.compare(self.out(framed('aa')), self.out(framed('bb')))[0])
+        self.assertTrue(self.compare(self.out(framed('aa', anim=True)), self.out(framed('bb')))[0])
+        self.assertTrue(self.compare(self.out(framed('aa')), self.out(framed('bb')), frames=False)[0])
+
+
 class ReportTest(unittest.TestCase):
     def report(self, recs):
         with tempfile.TemporaryDirectory() as out:
