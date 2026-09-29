@@ -688,7 +688,7 @@ def explore(rundir, cfg_path, out, rounds=10, timewarp=4.0, limit=600, workers=1
     first options. New jobs are added to the config (id "<job>~<choices>"). Returns whether every branch was taken
     (not when the rounds ran out, or when branches were left out because the config reached ``limit`` jobs)."""
     cfg = read_json(cfg_path)
-    dropped = 0
+    dropped = set()                                 # the branches over the limit; the next round meets them again
     for rnd in range(rounds):
         if workers > 1:
             prun(rundir, cfg_path, out, workers, timewarp, batch, display, gpu, screen, fast, language, text,
@@ -726,7 +726,7 @@ def explore(rundir, cfg_path, out, rounds=10, timewarp=4.0, limit=600, workers=1
                         new.append(dict(job, id=nid, choices=path + [j]))
                         ids.add(nid)
                     else:
-                        dropped += 1
+                        dropped.add(nid)
                 path.append(k)
         print(f"round {rnd + 1}: {plural(stats['jobs'], 'job')}, {plural(stats['lines'], 'line')}, "
               f"{plural(stats['pictures'], 'picture')}; "
@@ -740,5 +740,6 @@ def explore(rundir, cfg_path, out, rounds=10, timewarp=4.0, limit=600, workers=1
         print(f'stopped after {rounds} rounds; run explore again to go on', file=sys.stderr)
         return False
     if dropped:
-        print(f'{dropped} branches left out: the config reached {limit} jobs (raise it with --limit)', file=sys.stderr)
+        print(f'{len(dropped)} branches left out: the config reached {limit} jobs (raise it with --limit)',
+              file=sys.stderr)
     return not dropped
