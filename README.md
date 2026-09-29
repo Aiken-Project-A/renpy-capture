@@ -26,20 +26,23 @@ anyone.
 
 ## What you get
 
-![The page of a capture: each picture of the game with the lines spoken over it, and a menu with the option taken](docs/images/book.jpg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/book-dark.jpg">
+  <img src="docs/images/book.jpg" alt="The page of a capture: each picture of the game with the lines spoken over it, and a menu with the option taken">
+</picture>
 
-- **The book of the game.** Every line beside the picture the player sees, with the speaker and the line of the
-  script. Search it; link to any line.
-- **The tree of choices.** Every menu and every option, down to how each path ends; each option opens its moment in
-  the book.
-- **The translation beside the original.** Line under line, frame beside frame, in the game's own dialogue window:
-  does the text fit, does the font have the letters.
+- **[The book of the game.](https://aiken-project-a.github.io/renpy-capture/the-question/)** Every line beside the
+  picture the player sees, with the speaker and the line of the script. Search it; link to any line.
+- **[The tree of choices.](https://aiken-project-a.github.io/renpy-capture/the-question/choices.html)** Every menu and
+  every option, down to how each path ends; each option opens its moment in the book.
+- **[The translation beside the original.](https://aiken-project-a.github.io/renpy-capture/the-question-ru/)** Line
+  under line, frame beside frame, in the game's own dialogue window: does the text fit, does the font have the letters.
 - **Proof that nothing was missed.** After the capture the game's scripts are read, and every scene no path reached
   is named, with its label, file and line.
 
 ## Who it's for
 
-| | |
+| You are | It gives you |
 |---|---|
 | **Translators** | Every line with its context: who speaks, to whom, what is on screen, what came before. |
 | **Editors and proofreaders** | The whole translation, in the game, behind one link: nothing to install, no routes to replay. |
@@ -84,7 +87,7 @@ xdg-open work/export-text-russian/index.html
   renpy.org and is checked against its official checksum.
 
 Tested on a large commercial game: 44 branches and 21,945 lines in about eight minutes on four engines, every picture
-identical to the byte to the run before.
+identical, byte for byte, to the run before.
 
 ## Compared with what you do now
 
