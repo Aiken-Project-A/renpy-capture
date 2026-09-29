@@ -33,6 +33,15 @@ class UtilTest(unittest.TestCase):
                 f.write('{"a": "é"}')
             self.assertEqual(read_json(p), {'a': 'é'})
 
+    def test_a_broken_line_of_a_log_is_named(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, 'log.jsonl')
+            with open(p, 'w', encoding='utf-8') as f:
+                f.write('{"ev": "start"}\n{"ev": "sh')
+            with self.assertRaises(ValueError) as cm:                # the command line reports a ValueError in a line
+                read_jsonl(p)
+        self.assertIn('log.jsonl:2:', str(cm.exception))
+
 
 if __name__ == '__main__':
     unittest.main()
