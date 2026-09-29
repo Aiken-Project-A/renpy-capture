@@ -86,16 +86,13 @@ class Game:
 
     def __init__(self, path):
         self.base = game_dir(path)
-        self.root = os.path.dirname(self.base)
-        self.files, self.origin, low = {}, {}, {}
+        self.files, low = {}, {}
 
-        def add(rel, fn, where):
+        def add(rel, fn):
             key = rel.lower()
-            if key in low:
-                return
-            low[key] = rel
-            self.files[rel] = fn
-            self.origin[rel] = where
+            if key not in low:
+                low[key] = rel
+                self.files[rel] = fn
 
         for d, subs, fs in os.walk(self.base):
             subs.sort()
@@ -105,17 +102,16 @@ class Game:
                 if f.lower().endswith(('.rpa', '.rpi', '.rpyb')) or rel.lower().startswith(SKIP_DIRS) \
                         or MODS.search(rel):
                     continue
-                add(rel, (lambda p=p: read_bytes(p)), 'disk')
-        self.archives = sorted(f for f in os.listdir(self.base)
-                               if f.lower().endswith('.rpa') and not MODS.search(f))[::-1]
-        for f in self.archives:
+                add(rel, lambda p=p: read_bytes(p))
+        archives = sorted(f for f in os.listdir(self.base) if f.lower().endswith('.rpa') and not MODS.search(f))
+        for f in reversed(archives):
             arc = rpa.Archive(os.path.join(self.base, f))
             for n in sorted(arc.index):
                 rel = n.replace('\\', '/')
                 if rel.lower().startswith('tl/'):
                     continue
-                add(rel, (lambda arc=arc, n=n: arc.read(n)), f)
-        self.decompiled, self.failed = set(), {}
+                add(rel, lambda arc=arc, n=n: arc.read(n))
+        self.failed = {}
 
     def scripts(self):
         """{path of a .rpy/.rpym: text}: the source where the game ships it; otherwise the compiled .rpyc/.rpymc
@@ -129,7 +125,6 @@ class Game:
             elif low.endswith(('.rpyc', '.rpymc')) and low[:-1] not in have:
                 try:
                     out[rel[:-1]] = decompile(self.files[rel]())
-                    self.decompiled.add(rel[:-1])
                 except ImportError:
                     raise
                 except Exception as e:
