@@ -316,7 +316,7 @@ def gaps(game, cfg_path, out, show=True):
 
     found, closed_n, elsewhere = collections.defaultdict(list), 0, 0
     for f, text in sorted(Game(game).scripts().items()):
-        f = re.sub(r'^game/', '', f)
+        f = script_path(f)
         if os.path.basename(f).startswith('zz_renpy_capture'):
             continue
         lines = text.split('\n')

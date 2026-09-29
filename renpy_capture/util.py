@@ -2,7 +2,6 @@
 for the lines a person reads."""
 import json
 import os
-import re
 
 
 def read_text(path, errors='strict'):
@@ -28,7 +27,9 @@ def read_jsonl(path):
 def script_path(fn):
     """The engine names a script `game/script.rpy` when it loads it from disk and `script.rpyc` when it loads it from
     an archive; both become the path of the .rpy source inside game/ (`script.rpy`)."""
-    fn = re.sub(r'^game/', '', fn or '')
+    fn = fn or ''
+    if fn.startswith('game/'):
+        fn = fn[5:]
     return fn[:-1] if fn.endswith(('.rpyc', '.rpymc')) else fn
 
 
