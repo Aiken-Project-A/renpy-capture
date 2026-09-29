@@ -20,8 +20,16 @@ def read_json(path):
 
 
 def read_jsonl(path):
+    """The records of a log. A line that is not JSON (an engine killed in the middle of a write) is named, with its
+    number: "Unterminated string starting at: line 1" alone does not say which file."""
     with open(path, encoding='utf-8') as f:
-        return [json.loads(line) for line in f]
+        recs = []
+        for n, line in enumerate(f, 1):
+            try:
+                recs.append(json.loads(line))
+            except ValueError as e:
+                raise ValueError(f'{path}:{n}: not a record of the log ({e})') from e
+        return recs
 
 
 def script_path(fn):
