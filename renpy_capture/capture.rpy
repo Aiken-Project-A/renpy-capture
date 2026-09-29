@@ -113,10 +113,10 @@ init python:
         shown screens that are not part of the interface."""
         seen = set()
 
-        def cb(d):
-            fn = getattr(d, "filename", None)
-            if isinstance(fn, str) and isinstance(d, renpy.display.im.Image):
-                seen.add(fn)
+        def cb(d, Image=renpy.display.im.Image):
+            # the class first: almost no displayable has a filename, and a getattr that misses raises an exception
+            if isinstance(d, Image) and isinstance(getattr(d, "filename", None), str):
+                seen.add(d.filename)
 
         for layer in ("master", "screens"):
             for e in ctx.scene_lists.layers.get(layer, []):
