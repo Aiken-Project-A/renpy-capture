@@ -161,6 +161,9 @@ def compare(a, b, frames=True):
                 print(f'{j} #{p.get("seq")} {p.get("kind")} {p.get("file")}:{p.get("line")}: '
                       'a different frame of a scene at rest')
     only = sorted(set(sa) ^ set(sb))
+    if not sa and not sb:                           # two paths that lead nowhere are not two runs that match
+        print(f'nothing to compare: no capture in {a} or in {b}')
+        return False
     print(f'jobs {len(common)}, captures {total}: ' + (f'same frame {same}, another animation phase {anim}, '
                                                           if frames else f'same scene state {same}, ')
           + f'mismatches {bad}' + (f'; only in one run: {", ".join(only)}' if only else ''))
