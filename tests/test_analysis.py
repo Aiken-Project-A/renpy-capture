@@ -104,6 +104,31 @@ class CompareTest(unittest.TestCase):
         self.assertIn('nothing to compare', text)
 
 
+class ForgetTest(unittest.TestCase):
+    def test_jobs_leave_the_log_and_the_done_list_and_the_others_stay_as_written(self):
+        with tempfile.TemporaryDirectory() as out:
+            log = [{'ev': 'start', 'job': 'a', 'label': 'é'}, {'ev': 'end', 'job': 'a'},
+                   {'ev': 'start', 'job': 'b'}, {'ev': 'end', 'job': 'b'}]
+            with open(os.path.join(out, 'log.jsonl'), 'w', encoding='utf-8') as f:
+                f.writelines(json.dumps(r, ensure_ascii=False) + '\n' for r in log)
+            with open(os.path.join(out, 'done.txt'), 'w') as f:
+                f.write('a\nb\n')
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                analysis.forget(out, ['a', 'nothing'])
+            with open(os.path.join(out, 'log.jsonl'), encoding='utf-8') as f:
+                self.assertEqual(f.read(), ''.join(json.dumps(r, ensure_ascii=False) + '\n' for r in log[2:]))
+            with open(os.path.join(out, 'done.txt')) as f:
+                self.assertEqual(f.read(), 'b\n')
+            self.assertEqual(buf.getvalue(), 'log.jsonl: 2 records removed\ndone.txt: 1 records removed\n')
+            self.assertEqual(sorted(os.listdir(out)), ['done.txt', 'log.jsonl'])        # no .new left behind
+
+    def test_a_capture_without_a_log_is_left_alone(self):
+        with tempfile.TemporaryDirectory() as out, contextlib.redirect_stdout(io.StringIO()):
+            analysis.forget(out, ['a'])
+            self.assertEqual(os.listdir(out), [])
+
+
 class ReportTest(unittest.TestCase):
     def report(self, recs):
         with tempfile.TemporaryDirectory() as out:
@@ -114,6 +139,33 @@ class ReportTest(unittest.TestCase):
             with contextlib.redirect_stdout(buf):
                 analysis.report(out)
             return buf.getvalue()
+
+    def test_the_error_of_a_job_is_its_own_line_not_the_platform_tail(self):
+        trace = ('Traceback (most recent call last):\n  File "game/script.rpy", line 3\nNameError: name \'x\' is not '
+                 'defined\n\nWindows-10-10.0.19045 Ren\'Py 8.2.3\nMon Jan  1 00:00:00 2024\n')
+        text = self.report([shot(1, 3), {'ev': 'error', 'job': 'j', 'error': trace},
+                            {'ev': 'end', 'job': 'j', 'why': 'error', 'seconds': 1.0}])
+        self.assertIn("error: NameError: name 'x' is not defined", text)
+        self.assertNotIn('Windows', text)
+
+    def test_an_ignored_error_is_marked_and_not_counted(self):
+        recs = [shot(1, 3), {'ev': 'error', 'job': 'j', 'error': 'ValueError: x', 'ignored': True},
+                {'ev': 'end', 'job': 'j', 'why': 'end', 'seconds': 1.0}]
+        with tempfile.TemporaryDirectory() as out:
+            with open(os.path.join(out, 'log.jsonl'), 'w') as f:
+                f.writelines(json.dumps(r) + '\n' for r in recs)
+            with contextlib.redirect_stdout(io.StringIO()) as buf:
+                totals = analysis.report(out)
+                brief = analysis.report(out, brief=True)
+        self.assertIn('error: ignored: ValueError: x', buf.getvalue())
+        self.assertEqual((totals['errors'], totals['lines'], totals['pictures']), ([], 1, 0))
+        self.assertEqual(brief['errors'], [])
+
+    def test_a_missing_log_is_said_not_raised(self):
+        with tempfile.TemporaryDirectory() as out, contextlib.redirect_stdout(io.StringIO()) as buf:
+            totals = analysis.report(out)
+        self.assertIn('no log', buf.getvalue())
+        self.assertEqual(totals['jobs'], 0)
 
     def test_a_timed_menu_answered_after_wait_max_is_reported(self):
         waited = {'n': 1, 'options': ['Quick, left', 'Quick, right'], 'wait': True}
