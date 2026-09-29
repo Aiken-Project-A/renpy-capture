@@ -174,6 +174,10 @@ chosen by flags set much earlier can be captured with exact jobs (`gaps` tells w
   `drop`, or leave it out with `setup --exclude`. If every interaction takes seconds, the GPU driver may be in a bad
   state (it happens after a laptop's discrete GPU wakes from sleep): `--gpu mesa` or `--display xvfb` still work, a
   reboot brings the GPU back.
+- **A laptop's NVIDIA GPU wakes up during a capture.** `--gpu mesa` (or `--display xvfb`) leaves it asleep: the virtual
+  screen and the engine get only Mesa's graphics drivers and KWin only the other GPU. With `--gpu auto` KWin may render
+  on the NVIDIA GPU and wake it, as any program that draws on it; a system monitor that shows the GPU's load wakes it
+  too.
 - **Two runs differ.** `compare` shows the first line where the scene differs. Runs on different GPUs or drivers
   differ in pixels only: `compare --states-only`.
 - **A job stops early.** `report` tells why: a script error (`ignore_errors` steps over an author's typo), a hub label

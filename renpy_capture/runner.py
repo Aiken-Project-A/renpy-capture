@@ -23,6 +23,7 @@ RPY_NAME = 'zz_renpy_capture.rpy'
 RUN_INFO = 'renpy-capture.json'
 EGL = {'nvidia': '/usr/share/glvnd/egl_vendor.d/10_nvidia.json',
        'mesa': '/usr/share/glvnd/egl_vendor.d/50_mesa.json'}
+DRM_SYSFS = '/sys/class/drm'
 SCREEN = (1920, 1200)
 DISPLAYS = ('kwin', 'xvfb', 'window')
 STARTER = {'jobs': [{'id': 'start', 'label': 'start'}], 'ui': '.*', 'settle': 0.3, 'settle_max': 1.2,
@@ -172,8 +173,8 @@ class KWin:
     env = {'SDL_VIDEODRIVER': 'wayland'}
     unset = ('DISPLAY',)
 
-    def __init__(self, rundir, egl, size):
-        self.rundir, self.egl, self.size, self.n, self.p, self.sock = rundir, egl, size, 0, None, None
+    def __init__(self, rundir, genv, size):
+        self.rundir, self.genv, self.size, self.n, self.p, self.sock = rundir, genv, size, 0, None, None
 
     def start(self, inner, log):
         self.n += 1
@@ -189,8 +190,7 @@ class KWin:
                '--width', str(self.size[0]), '--height', str(self.size[1]), '--socket', self.sock,
                '--no-lockscreen', '--exit-with-session', inner]
         env = dict(os.environ)
-        if self.egl:                                # without EGL of the same vendor KWin falls back to QPainter
-            env['__EGL_VENDOR_LIBRARY_FILENAMES'] = self.egl
+        env.update(self.genv)                       # without EGL of the engine's vendor KWin falls back to QPainter
         self.p = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True, env=env)
         return self.p
 
@@ -212,14 +212,16 @@ class Xvfb:
     env = {'SDL_VIDEODRIVER': 'x11', '__GLX_VENDOR_LIBRARY_NAME': 'mesa'}
     unset = ('WAYLAND_DISPLAY', 'DBUS_SESSION_BUS_ADDRESS')
 
-    def __init__(self, rundir, egl, size):
-        self.size, self.p, self.x = size, None, None
+    def __init__(self, rundir, genv, size):
+        self.size, self.genv, self.p, self.x = size, genv, None, None
 
     def start(self, inner, log):
         r, w = os.pipe()
+        xenv = dict(os.environ)                     # the X server too loads the drivers it finds (see vendor_env)
+        xenv.update(self.genv)
         self.x = subprocess.Popen(['Xvfb', '-displayfd', str(w), '-screen', '0', f'{self.size[0]}x{self.size[1]}x24',
                                    '-nolisten', 'tcp', '-noreset'], pass_fds=(w,), stdout=log,
-                                  stderr=subprocess.STDOUT, start_new_session=True)
+                                  stderr=subprocess.STDOUT, start_new_session=True, env=xenv)
         os.close(w)
         with os.fdopen(r) as f:
             num = f.readline().strip()
@@ -243,7 +245,7 @@ class Window:
     name = 'window'
     env, unset = {}, ()
 
-    def __init__(self, rundir, egl, size):
+    def __init__(self, rundir, genv, size):
         self.p = None
 
     def start(self, inner, log):
@@ -265,7 +267,44 @@ def default_display():
     return 'window'
 
 
-def make_display(name, rundir, egl, size):
+def render_nodes(gpu):
+    """Render nodes (/dev/dri/renderD*) of one vendor's GPUs, by the kernel driver behind each: 'nvidia' — NVIDIA's
+    own driver, 'mesa' — every other one (amdgpu, i915, xe, nouveau…, the ones Mesa drives)."""
+    nodes = []
+    for d in sorted(os.listdir(DRM_SYSFS)) if os.path.isdir(DRM_SYSFS) else ():
+        if d.startswith('renderD'):
+            driver = os.path.basename(os.path.realpath(os.path.join(DRM_SYSFS, d, 'device', 'driver')))
+            if (driver == 'nvidia') == (gpu == 'nvidia'):
+                nodes.append('/dev/dri/' + d)
+    return nodes
+
+
+def vendor_env(gpu):
+    """The environment that keeps a program on one vendor's drivers: 'nvidia' or 'mesa' ({} for 'auto'). Each graphics
+    API picks drivers from its own list, EGL and GLX through glvnd, Vulkan through its loader, and a program that only
+    looks at a driver still loads it. NVIDIA's opens the card as it loads, which wakes a sleeping NVIDIA GPU: Xvfb
+    does it through EGL just by starting, KWin through Vulkan once a client connects and through its renderer on every
+    GPU it finds (KWin 6 keeps to KWIN_RENDER_NODES when it is set). VK_LOADER_DRIVERS_DISABLE needs Vulkan loader
+    1.3.234 or newer; older ones ignore it."""
+    if gpu == 'auto':
+        return {}
+    egl = EGL.get(gpu)
+    if egl is None or not os.path.exists(egl):
+        print(f'gpu {gpu!r}: no {egl or "known EGL vendor file"} here, leaving the GPU choice to the system')
+        return {}
+    env = {'__EGL_VENDOR_LIBRARY_FILENAMES': egl, '__GLX_VENDOR_LIBRARY_NAME': gpu}
+    if gpu == 'mesa':
+        env['VK_LOADER_DRIVERS_DISABLE'] = '*nvidia*'
+        # KWin often runs with file capabilities (cap_sys_nice), and in such a program the Vulkan loader ignores
+        # its environment: KWin's own switch is the only way to keep it off NVIDIA's Vulkan driver
+        env['KWIN_DISABLE_VULKAN'] = '1'
+    nodes = render_nodes(gpu)
+    if nodes:
+        env['KWIN_RENDER_NODES'] = ':'.join(nodes)
+    return env
+
+
+def make_display(name, rundir, genv, size):
     name = name or default_display()
     cls = {'kwin': KWin, 'xvfb': Xvfb, 'window': Window}.get(name)
     if cls is None:
@@ -274,7 +313,7 @@ def make_display(name, rundir, egl, size):
     missing = [c for c in need if not shutil.which(c)]
     if missing:
         raise SystemExit(f'display {name!r} needs {", ".join(missing)}, which is not installed')
-    return cls(rundir, egl, size)
+    return cls(rundir, genv, size)
 
 
 def sweep(sdk_dir, rundir):
@@ -409,11 +448,8 @@ def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, 
     display = display or cfg.get('display') or default_display()
     if display == 'xvfb':                           # Xvfb has no GPU: Mesa renders in software
         gpu = 'mesa'
-    egl = EGL.get(gpu)
-    if gpu != 'auto' and (egl is None or not os.path.exists(egl)):
-        print(f'gpu {gpu!r}: no {egl or "known EGL vendor file"} here, leaving the GPU choice to the system')
-        egl = None
-    disp = make_display(display, rundir, egl, _parse_size(screen or cfg.get('screen')))
+    genv = vendor_env(gpu)
+    disp = make_display(display, rundir, genv, _parse_size(screen or cfg.get('screen')))
     env = {'HOME': os.path.join(rundir, 'home'), 'SDL_AUDIODRIVER': 'dummy', 'RENPY_TIMEWARP': str(timewarp),
            'RENPY_CAPTURE_FAST': '1' if fast else '0', 'RENPY_CAPTURE_TEXT': '1' if text else '0',
            'RENPY_SKIP_MAIN_MENU': '1', 'RENPY_SKIP_SPLASHSCREEN': '1',
@@ -421,9 +457,7 @@ def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, 
            'RENPY_CAPTURE_CONFIG': os.path.abspath(cfg_path), 'RENPY_CAPTURE_OUT': os.path.abspath(out),
            'PATH': os.path.join(rundir, 'bin') + os.pathsep + os.environ.get('PATH', '/usr/bin:/bin'),
            'BROWSER': 'true'}
-    if egl:
-        env['__EGL_VENDOR_LIBRARY_FILENAMES'] = egl
-        env['__GLX_VENDOR_LIBRARY_NAME'] = 'nvidia' if gpu == 'nvidia' else 'mesa'
+    env.update(genv)
     language = language or cfg.get('language')
     if language:                                    # the engine starts in this language (a folder game/tl/<name>)
         tl = os.path.join(game_dir(info['game']), 'tl', language)

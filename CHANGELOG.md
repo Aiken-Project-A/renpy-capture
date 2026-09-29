@@ -45,6 +45,10 @@
   folder takes that SDK's version.
 - A click-to-continue indicator that blinks for ever no longer keeps a line from settling (each such line was
   captured only at `settle_max`, as if the scene were moving).
+- `--display xvfb` and `--gpu mesa` no longer wake a laptop's sleeping NVIDIA GPU. Xvfb loaded NVIDIA's EGL driver just
+  by starting; KWin opened a Vulkan instance on the NVIDIA GPU once the engine connected (KWin usually runs with file
+  capabilities, and then the Vulkan loader ignores the environment). The GPU chosen now keeps the X server, the
+  compositor and the engine on its vendor's EGL, GLX and Vulkan drivers, and KWin on that vendor's render nodes.
 
 ## 0.1.0 — 2026-09-28
 
