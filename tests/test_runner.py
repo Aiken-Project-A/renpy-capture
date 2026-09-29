@@ -116,6 +116,110 @@ class ExploreTest(unittest.TestCase):
         self.assertEqual([j['id'] for j in runner.read_json(self.cfg)['jobs']], ['start', 'start~1'])
 
 
+class BatchTest(unittest.TestCase):
+    """What a worker's batch brings into the common capture."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.src, self.out = os.path.join(self.tmp.name, 'w0'), os.path.join(self.tmp.name, 'out')
+        os.makedirs(os.path.join(self.src, 'frames'))
+        os.makedirs(os.path.join(self.out, 'frames'))
+
+    def frame(self, folder, name, data):
+        with open(os.path.join(folder, 'frames', name + '.png'), 'wb') as f:
+            f.write(data)
+
+    def test_records_of_the_finished_jobs_only_and_all_frames(self):
+        recs = [{'ev': 'start', 'job': 'a'}, {'ev': 'shot', 'job': 'a', 'frame': 'f1'}, {'ev': 'end', 'job': 'a'},
+                {'ev': 'start', 'job': 'b'}, {'ev': 'shot', 'job': 'b', 'frame': 'f2'}]     # b never ended
+        self.frame(self.src, 'f1', b'1')
+        self.frame(self.src, 'f2', b'2')
+        self.frame(self.out, 'f1', b'old')                       # the same picture is already there
+        runner.merge_jobs(self.src, self.out, {'a'}, recs)
+        self.assertEqual([r['ev'] for r in runner.read_jsonl(os.path.join(self.out, 'log.jsonl'))],
+                         ['start', 'shot', 'end'])
+        self.assertEqual(runner.read_text(os.path.join(self.out, 'done.txt')).split(), ['a'])
+        self.assertEqual(sorted(os.listdir(os.path.join(self.out, 'frames'))), ['f1.png', 'f2.png'])
+        self.assertEqual(runner.read_bytes(os.path.join(self.out, 'frames', 'f1.png')), b'old')
+        self.assertEqual(os.listdir(os.path.join(self.src, 'frames')), [])       # moved, not copied
+
+    def test_a_second_batch_is_appended(self):
+        for job in ('a', 'b'):
+            runner.merge_jobs(self.src, self.out, {job}, [{'ev': 'end', 'job': job}])
+        self.assertEqual(runner.read_text(os.path.join(self.out, 'done.txt')).split(), ['a', 'b'])
+        self.assertEqual(len(runner.read_jsonl(os.path.join(self.out, 'log.jsonl'))), 2)
+
+    def test_an_engine_that_painted_one_flat_colour_is_not_healthy(self):
+        def shots(distinct_scenes, distinct_frames):
+            return [{'ev': 'shot', 'job': 'a', 'shown': [f'bg {i}'], 'frame': f'f{i % distinct_frames}'}
+                    for i in range(distinct_scenes)]
+        self.assertTrue(runner.healthy(shots(10, 1)))            # too few scenes to tell
+        self.assertTrue(runner.healthy(shots(30, 30)))
+        self.assertTrue(runner.healthy(shots(30, 12)))           # 0.4 frames per scene is the least
+        self.assertFalse(runner.healthy(shots(30, 11)))
+        self.assertFalse(runner.healthy(shots(30, 1)))
+        same = [dict(r, same=True) for r in shots(30, 1)]        # a scene that did not change is not a new one
+        self.assertTrue(runner.healthy(same))
+
+
+class ProgressTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.out = self.tmp.name
+
+    def log(self, path, *recs, mode='a'):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, mode) as f:
+            for r in recs:
+                f.write((r if isinstance(r, str) else json.dumps(r)) + '\n')
+
+    def line(self, bar):
+        with mock.patch.object(runner.sys.stdout, 'isatty', lambda: False):
+            return bar.line()
+
+    def test_jobs_done_lines_and_the_job_under_way(self):
+        bar = runner.Progress(self.out, 3)
+        main = os.path.join(self.out, 'log.jsonl')
+        self.assertEqual(self.line(bar), '  0 of 3 jobs done, 0 lines, starting')
+        self.log(main, {'ev': 'start', 'job': 'a'}, {'ev': 'shot', 'job': 'a'}, {'ev': 'shot', 'job': 'a'})
+        self.assertEqual(self.line(bar), '  0 of 3 jobs done, 2 lines, now a')
+        self.log(main, {'ev': 'end', 'job': 'a'}, {'ev': 'start', 'job': 'b'})
+        self.log(os.path.join(self.out, 'done.txt'), 'a')
+        self.assertEqual(self.line(bar), '  1 of 3 jobs done, 2 lines, now b')
+
+    def test_a_record_still_being_written_waits_for_the_next_look(self):
+        bar = runner.Progress(self.out, 1)
+        main = os.path.join(self.out, 'log.jsonl')
+        self.log(main, {'ev': 'shot', 'job': 'a'})
+        with open(main, 'a') as f:
+            f.write('{"ev": "sho')
+        self.assertIn('1 line,', self.line(bar))
+        with open(main, 'a') as f:
+            f.write('t", "job": "a"}\n')
+        self.assertIn('2 lines,', self.line(bar))
+
+    def test_engines_at_work_and_a_batch_already_merged_is_not_counted_twice(self):
+        bar = runner.Progress(self.out, 4)
+        for k in (0, 1):
+            self.log(os.path.join(self.out, 'work', f'w{k}', 'log.jsonl'), {'ev': 'start', 'job': f'j{k}'},
+                     {'ev': 'shot', 'job': f'j{k}'})
+        self.assertEqual(self.line(bar), '  0 of 4 jobs done, 2 lines, 2 engines at work')
+        self.log(os.path.join(self.out, 'log.jsonl'), {'ev': 'shot', 'job': 'j0'}, {'ev': 'end', 'job': 'j0'})
+        self.log(os.path.join(self.out, 'done.txt'), 'j0')
+        self.assertEqual(self.line(bar), '  1 of 4 jobs done, 2 lines, now j1')
+
+
+class SizeTest(unittest.TestCase):
+    def test_screen_sizes(self):
+        self.assertEqual(runner._parse_size(None), runner.SCREEN)
+        self.assertEqual(runner._parse_size('1280x720'), (1280, 720))
+        self.assertEqual(runner._parse_size([800, '600']), (800, 600))
+        with self.assertRaises(SystemExit):
+            runner._parse_size('big')
+
+
 class DisplayTest(unittest.TestCase):
     def test_an_x_server_that_does_not_start_points_to_the_log_that_exists(self):
         """Xvfb closes the descriptor without a display number when it dies at once; its words are in display.log."""
