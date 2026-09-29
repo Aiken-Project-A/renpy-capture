@@ -140,6 +140,78 @@ class DisplayTest(unittest.TestCase):
             k.cleanup()                                     # already gone
 
 
+class LaunchTest(unittest.TestCase):
+    """What the engine is started with, and what is cleared before it starts."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.rundir = os.path.join(self.tmp.name, 'run')
+        os.makedirs(os.path.join(self.rundir, 'game', 'saves'))
+        self.game = os.path.join(self.tmp.name, 'MyGame')
+        os.makedirs(os.path.join(self.game, 'game'))
+        self.info = {'game': self.game, 'version': '8.2.3', 'sdk': None, 'exclude': None}
+        self.disp = runner.Xvfb(self.rundir, {}, (640, 480))
+
+    def env(self, **kw):
+        args = dict(timewarp=4.0, fast=False, text=False, language=None)
+        args.update(kw)
+        with mock.patch.object(runner, 'game_dir', lambda g: os.path.join(self.game, 'game')):
+            return runner._engine_env(self.info, self.rundir, 'cfg.json', 'out', self.disp, {'VENDOR': 'mesa'},
+                                      **args)
+
+    def test_the_switches_of_the_capture(self):
+        env = self.env(timewarp=2.5, fast=True, text=True)
+        self.assertEqual(env['RENPY_TIMEWARP'], '2.5')
+        self.assertEqual((env['RENPY_CAPTURE_FAST'], env['RENPY_CAPTURE_TEXT']), ('1', '1'))
+        self.assertEqual(env['RENPY_CAPTURE_CONFIG'], os.path.abspath('cfg.json'))
+        self.assertEqual(env['RENPY_CAPTURE_OUT'], os.path.abspath('out'))
+        self.assertEqual(env['HOME'], os.path.join(self.rundir, 'home'))
+        self.assertTrue(env['PATH'].startswith(os.path.join(self.rundir, 'bin') + os.pathsep))
+        self.assertEqual(env['VENDOR'], 'mesa')                     # the GPU vendor's
+        self.assertEqual(env['SDL_VIDEODRIVER'], 'x11')             # the display's
+        self.assertEqual((self.env()['RENPY_CAPTURE_FAST'], self.env()['RENPY_CAPTURE_TEXT']), ('0', '0'))
+        self.assertNotIn('RENPY_LANGUAGE', env)
+        self.assertNotIn('LD_LIBRARY_PATH', env)
+
+    def test_a_language_the_game_does_not_have_is_refused(self):
+        with self.assertRaises(SystemExit) as cm:
+            self.env(language='russian')
+        self.assertIn('russian', str(cm.exception.code))
+        os.makedirs(os.path.join(self.game, 'game', 'tl', 'russian'))
+        self.assertEqual(self.env(language='russian')['RENPY_LANGUAGE'], 'russian')
+
+    def test_live2d_core_of_the_game_is_linked_for_the_engine(self):
+        lib = os.path.join(self.game, 'lib', 'py3-linux-x86_64')
+        os.makedirs(lib)
+        open(os.path.join(lib, 'libLive2DCubismCore.so'), 'w').close()
+        env = self.env()
+        self.assertEqual(env['LD_LIBRARY_PATH'], os.path.join(os.path.abspath(self.rundir), 'live2d'))
+        self.assertTrue(os.path.islink(os.path.join(env['LD_LIBRARY_PATH'], 'libLive2DCubismCore.so')))
+        self.env()                                                  # again: the link is there already
+
+    def test_the_launcher_runs_the_sdk_on_the_launch_folder_under_that_environment(self):
+        inner = runner._write_launcher(self.rundir, '/sdk dir', self.disp, {'A': 'x y', 'B': '1'}, 'out/renpy.log')
+        self.assertTrue(os.access(inner, os.X_OK))
+        text = runner.read_text(inner)
+        self.assertEqual(text.splitlines()[0], '#!/bin/sh')
+        self.assertIn("exec env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS A='x y' B=1 '/sdk dir/renpy.sh' ", text)
+        self.assertTrue(text.rstrip().endswith(f">> {os.path.abspath('out/renpy.log')} 2>&1"))
+
+    def test_a_launch_starts_from_default_persistent_data_and_no_old_traceback(self):
+        saves = os.path.join(self.rundir, 'game', 'saves')
+        home = os.path.join(self.rundir, 'home', '.renpy', 'MyGame-1')
+        os.makedirs(home)
+        keep = os.path.join(saves, '1-1-LT1.save')
+        gone = [os.path.join(saves, 'persistent'), os.path.join(home, 'persistent'),
+                os.path.join(self.rundir, 'traceback.txt'), os.path.join(self.rundir, 'errors.txt')]
+        for p in gone + [keep]:
+            open(p, 'w').close()
+        runner._fresh_start(self.rundir)
+        self.assertEqual([p for p in gone if os.path.exists(p)], [])
+        self.assertTrue(os.path.exists(keep))
+
+
 class VendorTest(unittest.TestCase):
     """Choosing a GPU vendor keeps every graphics API on it: loading NVIDIA's driver alone wakes a sleeping NVIDIA
     GPU (found on a laptop with runtime D3: Xvfb woke it through EGL, KWin through Vulkan)."""

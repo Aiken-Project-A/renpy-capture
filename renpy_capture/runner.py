@@ -428,6 +428,65 @@ def _parse_size(v):
     return int(v[0]), int(v[1])
 
 
+def _engine_env(info, rundir, cfg_path, out, disp, genv, timewarp, fast, text, language):
+    """The environment of the engine: the capture's own switches, the display's and the GPU vendor's."""
+    env = {'HOME': os.path.join(rundir, 'home'), 'SDL_AUDIODRIVER': 'dummy', 'RENPY_TIMEWARP': str(timewarp),
+           'RENPY_CAPTURE_FAST': '1' if fast else '0', 'RENPY_CAPTURE_TEXT': '1' if text else '0',
+           'RENPY_SKIP_MAIN_MENU': '1', 'RENPY_SKIP_SPLASHSCREEN': '1',
+           'RENPY_GL_VSYNC': '0',      # Ren'Py only slows itself down with vsync; a 60 Hz screen does not matter here
+           'RENPY_CAPTURE_CONFIG': os.path.abspath(cfg_path), 'RENPY_CAPTURE_OUT': os.path.abspath(out),
+           'PATH': os.path.join(rundir, 'bin') + os.pathsep + os.environ.get('PATH', '/usr/bin:/bin'),
+           'BROWSER': 'true'}
+    env.update(genv)
+    if language:                                    # the engine starts in this language (a folder game/tl/<name>)
+        tl = os.path.join(game_dir(info['game']), 'tl', language)
+        if not os.path.isdir(tl):
+            raise SystemExit(f"language {language!r}: the game has no {tl}")
+        env['RENPY_LANGUAGE'] = language
+    env.update(disp.env)
+    # Live2D: the SDK from renpy.org has no Cubism Core (Live2D licenses it), a game with Live2D ships it in its own
+    # lib/, and the engine looks for it next to itself, then by name: a folder with one link to the game's core
+    core = os.path.join(os.path.dirname(game_dir(info['game'])), 'lib', 'py3-linux-x86_64',
+                        'libLive2DCubismCore.so')
+    if os.path.exists(core):
+        l2d = os.path.join(os.path.abspath(rundir), 'live2d')
+        os.makedirs(l2d, exist_ok=True)
+        if not os.path.lexists(os.path.join(l2d, 'libLive2DCubismCore.so')):
+            os.symlink(core, os.path.join(l2d, 'libLive2DCubismCore.so'))
+        env['LD_LIBRARY_PATH'] = l2d
+    return env
+
+
+def _write_launcher(rundir, sdk_dir, disp, env, rlog):
+    """The script the display runs: the engine under ``env``, minus what the display wants unset, its output to
+    renpy.log. Returns its path."""
+    inner = os.path.join(rundir, '.inner.sh')
+    with open(inner, 'w') as f:
+        f.write('#!/bin/sh\nexec env ' + ' '.join(f'-u {u}' for u in disp.unset) + ' '
+                + ' '.join(f'{k}={shlex.quote(v)}' for k, v in env.items())
+                + f' {shlex.quote(os.path.join(sdk_dir, "renpy.sh"))} {shlex.quote(os.path.abspath(rundir))}'
+                + f' >> {shlex.quote(os.path.abspath(rlog))} 2>&1\n')
+    os.chmod(inner, 0o755)
+    return inner
+
+
+def _fresh_start(rundir):
+    """Every launch starts with default persistent data (plus the config's values): earlier launches in this folder
+    leave no "seen" marks behind. And no traceback of an earlier launch is taken for this one's."""
+    for f in ('traceback.txt', 'errors.txt'):
+        p = os.path.join(rundir, f)
+        if os.path.exists(p):
+            os.remove(p)
+    stale = [os.path.join(rundir, 'game', 'saves', 'persistent'),
+             os.path.join(rundir, 'game', 'saves', 'sync', 'persistent')]
+    home = os.path.join(rundir, 'home', '.renpy')
+    if os.path.isdir(home):
+        stale += [os.path.join(home, d, 'persistent') for d in os.listdir(home)]
+    for p in stale:
+        if os.path.isfile(p):
+            os.remove(p)
+
+
 def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, screen=None, fast=False,
         language=None, text=False, quiet=False, progress=True):
     """Run the jobs of a config in one engine. A watchdog restarts the engine when the log has not grown for
@@ -446,52 +505,9 @@ def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, 
         gpu = 'mesa'
     genv = vendor_env(gpu)
     disp = make_display(display, rundir, genv, _parse_size(screen or cfg.get('screen')))
-    env = {'HOME': os.path.join(rundir, 'home'), 'SDL_AUDIODRIVER': 'dummy', 'RENPY_TIMEWARP': str(timewarp),
-           'RENPY_CAPTURE_FAST': '1' if fast else '0', 'RENPY_CAPTURE_TEXT': '1' if text else '0',
-           'RENPY_SKIP_MAIN_MENU': '1', 'RENPY_SKIP_SPLASHSCREEN': '1',
-           'RENPY_GL_VSYNC': '0',      # Ren'Py only slows itself down with vsync; a 60 Hz screen does not matter here
-           'RENPY_CAPTURE_CONFIG': os.path.abspath(cfg_path), 'RENPY_CAPTURE_OUT': os.path.abspath(out),
-           'PATH': os.path.join(rundir, 'bin') + os.pathsep + os.environ.get('PATH', '/usr/bin:/bin'),
-           'BROWSER': 'true'}
-    env.update(genv)
-    language = language or cfg.get('language')
-    if language:                                    # the engine starts in this language (a folder game/tl/<name>)
-        tl = os.path.join(game_dir(info['game']), 'tl', language)
-        if not os.path.isdir(tl):
-            raise SystemExit(f"language {language!r}: the game has no {tl}")
-        env['RENPY_LANGUAGE'] = language
-    env.update(disp.env)
-    # Live2D: the SDK from renpy.org has no Cubism Core (Live2D licenses it), a game with Live2D ships it in its own
-    # lib/, and the engine looks for it next to itself, then by name: a folder with one link to the game's core
-    core = os.path.join(os.path.dirname(game_dir(info['game'])), 'lib', 'py3-linux-x86_64',
-                        'libLive2DCubismCore.so')
-    if os.path.exists(core):
-        l2d = os.path.join(os.path.abspath(rundir), 'live2d')
-        os.makedirs(l2d, exist_ok=True)
-        if not os.path.lexists(os.path.join(l2d, 'libLive2DCubismCore.so')):
-            os.symlink(core, os.path.join(l2d, 'libLive2DCubismCore.so'))
-        env['LD_LIBRARY_PATH'] = l2d
-    inner = os.path.join(rundir, '.inner.sh')
-    with open(inner, 'w') as f:
-        f.write('#!/bin/sh\nexec env ' + ' '.join(f'-u {u}' for u in disp.unset) + ' '
-                + ' '.join(f'{k}={shlex.quote(v)}' for k, v in env.items())
-                + f' {shlex.quote(os.path.join(sdk_dir, "renpy.sh"))} {shlex.quote(os.path.abspath(rundir))}'
-                + f' >> {shlex.quote(os.path.abspath(rlog))} 2>&1\n')
-    os.chmod(inner, 0o755)
-    for f in ('traceback.txt', 'errors.txt'):
-        p = os.path.join(rundir, f)
-        if os.path.exists(p):
-            os.remove(p)
-    # every launch starts with default persistent data (plus the config's values): earlier launches in this folder
-    # leave no "seen" marks behind
-    stale = [os.path.join(rundir, 'game', 'saves', 'persistent'),
-             os.path.join(rundir, 'game', 'saves', 'sync', 'persistent')]
-    home = os.path.join(rundir, 'home', '.renpy')
-    if os.path.isdir(home):
-        stale += [os.path.join(home, d, 'persistent') for d in os.listdir(home)]
-    for p in stale:
-        if os.path.isfile(p):
-            os.remove(p)
+    env = _engine_env(info, rundir, cfg_path, out, disp, genv, timewarp, fast, text, language or cfg.get('language'))
+    inner = _write_launcher(rundir, sdk_dir, disp, env, rlog)
+    _fresh_start(rundir)
     log, done = os.path.join(out, 'log.jsonl'), os.path.join(out, 'done.txt')
     ids = [j['id'] for j in cfg['jobs']]
     bar = Progress(out, len(ids)) if progress else None
