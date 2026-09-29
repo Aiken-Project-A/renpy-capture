@@ -97,6 +97,12 @@ class CompareTest(unittest.TestCase):
         self.assertTrue(self.compare(self.out(framed('aa', anim=True)), self.out(framed('bb')))[0])
         self.assertTrue(self.compare(self.out(framed('aa')), self.out(framed('bb')), frames=False)[0])
 
+    def test_two_captures_that_are_not_there_do_not_match(self):
+        nowhere = os.path.join(tempfile.gettempdir(), 'renpy-capture-no-such-capture')
+        ok, text = self.compare(nowhere, nowhere + '-either')
+        self.assertFalse(ok)
+        self.assertIn('nothing to compare', text)
+
 
 class ReportTest(unittest.TestCase):
     def report(self, recs):
