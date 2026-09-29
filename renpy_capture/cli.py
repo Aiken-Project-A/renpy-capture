@@ -154,18 +154,17 @@ def dispatch(a):
     elif a.cmd == 'setup':
         from .runner import setup
         setup(a.game, a.rundir, a.renpy_version, a.sdk, a.exclude)
-    elif a.cmd == 'run':
-        from .runner import run
-        run(a.rundir, a.config, a.out, a.timewarp, a.stall, a.display, a.gpu, a.screen, fast=a.fast,
-            language=a.language, text=a.text)
-    elif a.cmd == 'prun':
-        from .runner import prun
-        prun(a.rundir, a.config, a.out, a.workers, a.timewarp, a.batch, a.display, a.gpu, a.screen, fast=a.fast,
-             language=a.language, text=a.text)
-    elif a.cmd == 'explore':
-        from .runner import explore
-        explore(a.rundir, a.config, a.out, a.rounds, a.timewarp, a.limit, a.workers, a.batch, a.display, a.gpu,
-                a.screen, fast=a.fast, language=a.language, text=a.text)
+    elif a.cmd in ('run', 'prun', 'explore'):
+        from . import runner
+        engine = dict(timewarp=a.timewarp, display=a.display, gpu=a.gpu, screen=a.screen, fast=a.fast,
+                      language=a.language, text=a.text)
+        if a.cmd == 'run':
+            runner.run(a.rundir, a.config, a.out, stall=a.stall, **engine)
+        elif a.cmd == 'prun':
+            runner.prun(a.rundir, a.config, a.out, workers=a.workers, batch=a.batch, **engine)
+        else:
+            runner.explore(a.rundir, a.config, a.out, rounds=a.rounds, limit=a.limit, workers=a.workers,
+                           batch=a.batch, **engine)
     elif a.cmd == 'report':
         from .analysis import report
         report(a.out)
