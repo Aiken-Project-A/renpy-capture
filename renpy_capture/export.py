@@ -147,6 +147,19 @@ def _place(src, dst):
         shutil.copyfile(src, dst)
 
 
+def _write_tsv(path, header, rows):
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write('\t'.join(header) + '\n')
+        for row in rows:
+            f.write('\t'.join(row) + '\n')
+
+
+def _pool():
+    """Processes for the pictures: decoding a frame is the slow part of a CG export."""
+    from concurrent.futures import ProcessPoolExecutor
+    return ProcessPoolExecutor(max_workers=min(8, os.cpu_count() or 4))
+
+
 def _tsv(v):
     return '' if v is None else str(v).replace('\t', ' ').replace('\r', ' ').replace('\n', ' ⏎ ')
 
@@ -191,9 +204,8 @@ def export(out, game, dest, opts=None, page=True, beside=None):
 
     effect = {}
     if cgrx:
-        from concurrent.futures import ProcessPoolExecutor
         hashes = sorted({r['frame'] for r in log if r.get('ev') == 'shot' and r.get('frame')})
-        with ProcessPoolExecutor(max_workers=min(8, os.cpu_count() or 4)) as ex:
+        with _pool() as ex:
             for h, v in zip(hashes, ex.map(_effect_job, [(frame_path(h), crop) for h in hashes], chunksize=16)):
                 effect[h] = v
 
@@ -324,26 +336,20 @@ def export(out, game, dest, opts=None, page=True, beside=None):
     if beside:
         apart, blang = _pair(shots, log, beside, dest)
         cols += ['beside_name', 'beside_what', 'beside_menu', 'beside_caption', 'beside_frame']
-    with open(os.path.join(dest, 'shots.tsv'), 'w', encoding='utf-8') as f:
-        f.write('\t'.join(cols) + '\n')
-        for s in shots:
-            f.write('\t'.join(_tsv(s[c]) for c in cols) + '\n')
+    _write_tsv(os.path.join(dest, 'shots.tsv'), cols, ([_tsv(s[c]) for c in cols] for s in shots))
     if cgrx:
-        from concurrent.futures import ProcessPoolExecutor
         os.makedirs(os.path.join(dest, 'cg'), exist_ok=True)
-        with ProcessPoolExecutor(max_workers=min(8, os.cpu_count() or 4)) as ex:
+        with _pool() as ex:
             list(ex.map(_save_job, [(frame_path(h), os.path.join(dest, 'cg', n + '.png'), crop)
                                     for n, h in to_save.items()], chunksize=8))
-        with open(os.path.join(dest, 'cg.tsv'), 'w', encoding='utf-8') as f:
-            f.write('cg\tframe\tjob\tstep\tfile\tline\tlabel\timages\tscreens\n')
-            for row in rows:
-                f.write('\t'.join(_tsv(x) for x in row) + '\n')
+        _write_tsv(os.path.join(dest, 'cg.tsv'),
+                   ['cg', 'frame', 'job', 'step', 'file', 'line', 'label', 'images', 'screens'],
+                   ([_tsv(x) for x in row] for row in rows))
     used = sorted({e for s in shots for e in s['effects'].split(' | ') if e})
     if used:
-        with open(os.path.join(dest, 'effects.tsv'), 'w', encoding='utf-8') as f:
-            f.write('effect\tkind\tfiles\tdefinition\n')
-            for n, (kind, fl, d) in fx_defs(scripts, used, list(g.files)).items():
-                f.write('\t'.join((_tsv(n), kind, ' '.join(fl), _tsv(d))) + '\n')
+        _write_tsv(os.path.join(dest, 'effects.tsv'), ['effect', 'kind', 'files', 'definition'],
+                   ([_tsv(n), kind, ' '.join(fl), _tsv(d)] for n, (kind, fl, d) in
+                    fx_defs(scripts, used, list(g.files)).items()))
     if page:
         title = os.path.basename(os.path.abspath(game).rstrip(os.sep))
         tree = write_choices(dest, log, title)

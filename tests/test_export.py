@@ -160,6 +160,17 @@ class ExportTest(unittest.TestCase):
         self.assertIn('<li class="pick">No</li>', page)
         self.assertTrue(os.path.exists(os.path.join(self.dest, 'choices.html')))
 
+    def test_effects_on_lines_are_listed_with_their_definitions(self):
+        with open(os.path.join(self.game, 'game', 'fx.rpy'), 'w') as f:
+            f.write('image glow = "fx/glow.png"\n')
+        out = self.capture('out', [{'ev': 'start', 'job': 'start', 'label': 'start'},
+                                   self.shot(1, 3, 'a', fx=['glow', 'skipped_one']),
+                                   self.shot(2, 5, 'b', fx=['glow'])])
+        self.export(out, opts={'fx_skip': '^skipped'})
+        self.assertEqual(self.rows()[0]['effects'], 'glow')
+        self.assertEqual(read_text(os.path.join(self.dest, 'effects.tsv')),
+                         'effect\tkind\tfiles\tdefinition\nglow\timage\tfx/glow.png\timage glow = "fx/glow.png"\n')
+
     def test_no_page_leaves_the_table_and_frames_only(self):
         self.export(self.base(), page=False)
         self.assertEqual(sorted(os.listdir(self.dest)), ['frames', 'shots.tsv'])
