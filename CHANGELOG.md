@@ -49,6 +49,16 @@
   by starting; KWin opened a Vulkan instance on the NVIDIA GPU once the engine connected (KWin usually runs with file
   capabilities, and then the Vulkan loader ignores the environment). The GPU chosen now keeps the X server, the
   compositor and the engine on its vendor's EGL, GLX and Vulkan drivers, and KWin on that vendor's render nodes.
+- `gaps` no longer runs the conditions of the game's scripts with `eval`: a crafted `if` naming a `gaps_scope` variable
+  could run code on your machine. Conditions are computed from names, constants, comparisons, `and`/`or`/`not`,
+  arithmetic and subscripts; anything else (a call, an attribute, `**`) is undecided and its branches stay open.
+- `compare` no longer stops on a job the engine died in (no `end` record), and two captures that hold nothing (a
+  misspelt path) no longer "match": it says so and exits 1.
+- `explore` counts a branch left out over `--limit` once, not once per round.
+- A damaged archive or an index that asks for code is reported in one line, not a traceback; a log with a broken line
+  names the file and the line.
+- `export` of a long capture is much faster (24 000 lines of a game with 3 000 labels: 8 s, now 1.4 s): the label of a
+  line is looked up by bisection.
 
 ## 0.1.0 — 2026-09-28
 
