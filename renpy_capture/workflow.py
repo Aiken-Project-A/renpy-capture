@@ -5,7 +5,7 @@ import io
 import os
 
 from . import analysis, export, runner
-from .util import plural, read_json, read_jsonl
+from .util import near, plural, read_json, read_jsonl
 
 
 def paths(workdir, language=None, text=False):
@@ -46,35 +46,34 @@ def capture(game, workdir, workers=1, version=None, sdk_dir=None, exclude=None, 
             export.export(original, game, p['export'], beside=p['out'])
         else:
             export.export(p['out'], game, p['export'])
-    _summary(game, workdir, p, complete, missed, why, language, beside)
+    _summary(game, p, complete, missed, why, language, beside)
     return p
 
 
-def _summary(game, workdir, p, complete, missed, why, language, beside):
+def _summary(game, p, complete, missed, why, language, beside):
     recs = read_jsonl(os.path.join(p['out'], 'log.jsonl'))
     shots = [r for r in recs if r['ev'] == 'shot']
     jobs = {r['job'] for r in recs if r['ev'] == 'end'}
     frames = {r['frame'] for r in shots if r.get('frame')}
     errors = {r['job'] for r in recs if r['ev'] == 'error' and not r.get('ignored')}
-    rel = runner._near
     print()
     print(f"Done: {plural(len(shots), 'line')} in {plural(len(jobs), 'job')}, {plural(len(frames), 'picture')}"
           + (', every menu option taken.' if complete else '; some branches are still to take: run it again.'))
     if errors:
-        print(f"{plural(len(errors), 'job')} stopped on a script error: renpy-capture report {rel(p['out'])}")
+        print(f"{plural(len(errors), 'job')} stopped on a script error: renpy-capture report {near(p['out'])}")
     if why:
         print(f'Lines left unreached: not checked, {why}.')
     elif missed:
         print(f"{plural(missed, 'scene line')} never reached (a branch behind a flag set earlier?): "
-              f"renpy-capture gaps {rel(game)} {rel(p['config'])} {rel(p['out'])}")
+              f"renpy-capture gaps {near(game)} {near(p['config'])} {near(p['out'])}")
     else:
         print('Every scene line was reached.')
     if language and not beside:
         print('Capture the original too (the same command without --language) to see the translation beside it.')
     print('Open:')
-    print(f"  {rel(os.path.join(p['export'], 'index.html'))}    every line with its picture"
+    print(f"  {near(os.path.join(p['export'], 'index.html'))}    every line with its picture"
           + (', the translation beside the original' if beside else ''))
     if os.path.exists(os.path.join(p['export'], 'choices.html')):
-        print(f"  {rel(os.path.join(p['export'], 'choices.html'))}  the tree of choices")
-    print(f"  {rel(os.path.join(p['export'], 'shots.tsv'))}     the same as a table")
-    print(f"Run the same command again to go on after an interruption or after editing {rel(p['config'])}.")
+        print(f"  {near(os.path.join(p['export'], 'choices.html'))}  the tree of choices")
+    print(f"  {near(os.path.join(p['export'], 'shots.tsv'))}     the same as a table")
+    print(f"Run the same command again to go on after an interruption or after editing {near(p['config'])}.")

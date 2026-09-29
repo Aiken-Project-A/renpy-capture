@@ -15,7 +15,7 @@ import traceback
 from . import sdk as sdkmod
 from .analysis import report
 from .game import MODS, engine_hint, engine_version, game_dir
-from .util import plural, read_bytes, read_json, read_jsonl, read_text
+from .util import near, plural, read_bytes, read_json, read_jsonl, read_text
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CAPTURE_RPY = os.path.join(HERE, 'capture.rpy')
@@ -28,12 +28,6 @@ SCREEN = (1920, 1200)
 DISPLAYS = ('kwin', 'xvfb', 'window')
 STARTER = {'jobs': [{'id': 'start', 'label': 'start'}], 'ui': '.*', 'settle': 0.3, 'settle_max': 1.2,
            'max_steps': 3000, 'loop_limit': 40}
-
-
-def _near(path):
-    """A path as a person reads it: relative when it is under the current folder."""
-    rel = os.path.relpath(path)
-    return path if rel.startswith('..') else rel
 
 
 def _info(rundir):
@@ -71,7 +65,7 @@ def setup(game, rundir, version=None, sdk_dir=None, exclude=None, quiet=False):
         json.dump(info, f, ensure_ascii=False, indent=1)
     link_game(info, rundir)
     if not quiet:
-        print(f"launch folder: {_near(rundir)} (Ren'Py {version or 'from ' + sdk_dir})")
+        print(f"launch folder: {near(rundir)} (Ren'Py {version or 'from ' + sdk_dir})")
 
 
 COMPILED = {'.rpyc': '.rpy', '.rpymc': '.rpym'}
@@ -147,7 +141,7 @@ def init_config(game, path):
         raise SystemExit(f'{path} exists')
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(STARTER, f, ensure_ascii=False, indent=1)
-    print(f'config: {_near(path)} (a starter one: yours to edit, see docs/config.md)')
+    print(f'config: {near(path)} (a starter one: yours to edit, see docs/config.md)')
 
 
 def kill_group(p):
