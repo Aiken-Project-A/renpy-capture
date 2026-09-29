@@ -1,5 +1,6 @@
 """Export a capture: every interaction with the frame on screen at that moment (shots.tsv and a browsable
 index.html), and optionally the game's event pictures (CG) cut out as separate images."""
+import bisect
 import collections
 import html
 import os
@@ -14,29 +15,35 @@ SCENARIO_LABEL = re.compile(r'^\s*label\s+([A-Za-z_][\w.]*)')
 
 class Labels:
     """The label of a scene by file and line: the nearest `label` above the line in the script (decompiled scripts
-    keep the line numbers of the original, the same numbers the engine reports)."""
+    keep the line numbers of the original, the same numbers the engine reports). A novel has thousands of labels and
+    every line of a capture asks, so a file is scanned once and a line is looked up by bisection."""
 
     def __init__(self, scripts):
-        self.scripts, self.cache = scripts, {}
+        self.scripts, self.marks, self.by_skip, self.found = scripts, {}, {}, {}
 
-    def __call__(self, fn, line, skip=None):
-        if not fn or not line:
-            return None
-        rel = script_path(fn)
-        if rel not in self.cache:
+    def _names(self, rel, skip):
+        """The lines of the labels of a file (those ``skip`` matches left out) and their names, in order."""
+        if rel not in self.marks:
             marks = []
             for i, ln in enumerate((self.scripts.get(rel) or '').split('\n'), 1):
                 m = SCENARIO_LABEL.match(ln)
                 if m:
                     marks.append((i, m.group(1)))
-            self.cache[rel] = marks
-        best = None
-        for i, name in self.cache[rel]:             # skip: labels that do not name a scene (replay entry points in
-            if i > line:                            # the middle of a scene): the story label above is taken
-                break
-            if skip is None or not skip.match(name):
-                best = name
-        return best
+            self.marks[rel] = marks
+        if (rel, skip) not in self.by_skip:         # skip: labels that do not name a scene (replay entry points in
+            keep = [(i, n) for i, n in self.marks[rel] if skip is None or not skip.match(n)]   # the middle of a
+            self.by_skip[rel, skip] = [i for i, _ in keep], [n for _, n in keep]               # scene)
+        return self.by_skip[rel, skip]
+
+    def __call__(self, fn, line, skip=None):
+        if not fn or not line:
+            return None
+        key = fn, line, skip
+        if key not in self.found:
+            lines, names = self._names(script_path(fn), skip)
+            k = bisect.bisect_right(lines, line)
+            self.found[key] = names[k - 1] if k else None
+        return self.found[key]
 
 
 def coverage(data, area):
