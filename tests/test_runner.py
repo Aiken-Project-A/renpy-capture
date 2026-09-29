@@ -1,5 +1,7 @@
 """Several engines at once: the SDK is fetched before the workers start; a worker that stops is reported, and the
 jobs the others finished are kept."""
+import contextlib
+import io
 import json
 import os
 import tempfile
@@ -55,6 +57,63 @@ class PrunTest(unittest.TestCase):
         self.assertIn('no display', str(cm.exception.code))
         done = runner.read_text(os.path.join(self.out, 'done.txt')).split()
         self.assertEqual(sorted(done), ['j0', 'j1', 'j2'])   # batches j0+j1, j2, j3: only the last one stopped
+
+
+class ExploreTest(unittest.TestCase):
+    """Rounds of exploring: which jobs a finished capture makes new."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.cfg = os.path.join(self.tmp.name, 'cfg.json')
+        self.out = os.path.join(self.tmp.name, 'out')
+        os.makedirs(self.out)
+        self.rounds = 0
+        self.patches = [mock.patch.object(runner, 'run', self.fake_run),
+                        mock.patch.object(runner, 'report', lambda out, brief=False: {'jobs': 0, 'lines': 0,
+                                                                                       'pictures': 0})]
+        for p in self.patches:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def config(self):
+        with open(self.cfg, 'w') as f:
+            json.dump({'jobs': [{'id': 'start', 'label': 'start'}]}, f)
+
+    def fake_run(self, rundir, cfg, out, *a, **kw):
+        """A game with one menu of three options that leads nowhere: a job takes the option its `choices` name."""
+        self.rounds += 1
+        done = set(runner.read_text(os.path.join(out, 'done.txt')).split()) if \
+            os.path.exists(os.path.join(out, 'done.txt')) else set()
+        with open(os.path.join(out, 'log.jsonl'), 'a') as f, open(os.path.join(out, 'done.txt'), 'a') as d:
+            for job in runner.read_json(cfg)['jobs']:
+                if job['id'] in done:
+                    continue
+                pick = (job.get('choices') or [0])[0]
+                f.write(json.dumps({'ev': 'shot', 'job': job['id'], 'seq': 1, 'file': 'game/script.rpy', 'line': 10,
+                                    'menu': {'options': ['a', 'b', 'c'], 'pick': pick}}) + '\n')
+                d.write(job['id'] + '\n')
+
+    def explore(self, **kw):
+        err = io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            complete = runner.explore(self.tmp.name, self.cfg, self.out, **kw)
+        return complete, err.getvalue()
+
+    def test_every_option_of_a_menu_becomes_a_job(self):
+        self.config()
+        complete, _ = self.explore()
+        self.assertTrue(complete)
+        self.assertEqual([j['id'] for j in runner.read_json(self.cfg)['jobs']], ['start', 'start~1', 'start~2'])
+        self.assertEqual(self.rounds, 2)                # one round to find the menu, one to take its options
+
+    def test_branches_over_the_limit_are_counted_once(self):
+        """The branch that did not fit is met again in every round; it is still one branch left out."""
+        self.config()
+        complete, err = self.explore(limit=2)
+        self.assertFalse(complete)
+        self.assertIn('1 branches left out', err)
+        self.assertEqual([j['id'] for j in runner.read_json(self.cfg)['jobs']], ['start', 'start~1'])
 
 
 class VendorTest(unittest.TestCase):
