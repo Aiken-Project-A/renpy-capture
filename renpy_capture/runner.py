@@ -221,7 +221,7 @@ class Xvfb:
             num = f.readline().strip()
         if not num:
             kill_group(self.x)
-            raise SystemExit('Xvfb did not start (see kwin.log / display log in the output folder)')
+            raise SystemExit('Xvfb did not start (see display.log in the output folder)')
         env = dict(os.environ, DISPLAY=':' + num)
         self.p = subprocess.Popen([inner], stdout=log, stderr=subprocess.STDOUT, start_new_session=True, env=env)
         return self.p

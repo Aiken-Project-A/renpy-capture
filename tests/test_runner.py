@@ -116,6 +116,19 @@ class ExploreTest(unittest.TestCase):
         self.assertEqual([j['id'] for j in runner.read_json(self.cfg)['jobs']], ['start', 'start~1'])
 
 
+class DisplayTest(unittest.TestCase):
+    def test_an_x_server_that_does_not_start_points_to_the_log_that_exists(self):
+        """Xvfb closes the descriptor without a display number when it dies at once; its words are in display.log."""
+        popen = mock.Mock(return_value=mock.Mock())
+        with mock.patch.object(runner.subprocess, 'Popen', popen), \
+                mock.patch.object(runner, 'kill_group') as killed:
+            with self.assertRaises(SystemExit) as cm:
+                runner.Xvfb('rundir', {}, (640, 480)).start('inner', None)
+        self.assertIn('display.log', str(cm.exception.code))
+        self.assertNotIn('kwin.log', str(cm.exception.code))
+        killed.assert_called_once()
+
+
 class VendorTest(unittest.TestCase):
     """Choosing a GPU vendor keeps every graphics API on it: loading NVIDIA's driver alone wakes a sleeping NVIDIA
     GPU (found on a laptop with runtime D3: Xvfb woke it through EGL, KWin through Vulkan)."""
