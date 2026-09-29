@@ -11,13 +11,17 @@ import pickle
 import zlib
 
 
+class UnsafeIndex(pickle.UnpicklingError, ValueError):
+    """The index asks for something to be run. A ValueError too: a game we cannot read, for the command line."""
+
+
 class _IndexUnpickler(pickle.Unpickler):
     _ALLOWED = {('_codecs', 'encode'), ('builtins', 'bytes'), ('__builtin__', 'bytes')}   # protocol 2 names it so
 
     def find_class(self, module, name):
         if (module, name) in self._ALLOWED:
             return super().find_class(module, name)
-        raise pickle.UnpicklingError(f'the archive index refers to {module}.{name}; refusing to load it')
+        raise UnsafeIndex(f'the archive index refers to {module}.{name}; refusing to load it')
 
 
 def _load_index(data):
@@ -40,7 +44,12 @@ class Archive:
             else:
                 raise ValueError(f'{path}: not an RPA-2.0 or RPA-3.0 archive')
             f.seek(offset)
-            raw = _load_index(zlib.decompress(f.read()))
+            try:
+                raw = _load_index(zlib.decompress(f.read()))
+            except UnsafeIndex:
+                raise
+            except (zlib.error, pickle.UnpicklingError, EOFError) as e:      # a cut-off or damaged file
+                raise ValueError(f'{path}: the archive index cannot be read ({type(e).__name__}: {e})') from e
         self.index = {}
         for name, entries in raw.items():
             segments = []

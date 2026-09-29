@@ -56,6 +56,25 @@ class RPATest(unittest.TestCase):
             Archive(self.path())
         self.assertFalse(os.path.exists(marker))
 
+    def test_code_in_the_index_is_a_value_error_too(self):
+        """The command line reports ValueError as "a game we cannot read"; anything else is a traceback."""
+        write_rpa(self.path(), {}, index_obj={'x': Payload(self.path('pwned'))})
+        with self.assertRaises(ValueError):
+            Archive(self.path())
+
+    def test_a_damaged_index_is_a_value_error(self):
+        write_rpa(self.path(), self.files)
+        size = os.path.getsize(self.path())
+        with open(self.path(), 'r+b') as f:
+            f.truncate(size - 10)                       # cut off in the middle of the compressed index
+        with self.assertRaises(ValueError):
+            Archive(self.path())
+        with open(self.path(), 'r+b') as f:
+            f.seek(-8, os.SEEK_END)
+            f.write(b'garbage!')
+        with self.assertRaises(ValueError):
+            Archive(self.path())
+
     def test_wrong_key_is_rejected(self):
         write_rpa(self.path(), self.files)
         with open(self.path(), 'r+b') as f:
