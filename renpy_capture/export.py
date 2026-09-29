@@ -80,6 +80,7 @@ def _save_job(args):
         (im.crop(crop) if crop else im).save(dst)
 
 
+IMAGE_FILE = re.compile(r'\.(png|webp|jpe?g)$', re.I)
 FX_BLOCK = re.compile(r'^(\s*)(image|screen)\s+([A-Za-z_][\w ]*?)\s*(?:\([^)]*\))?\s*(:|=)')
 FX_FILE = re.compile(r'"([^"]+\.(?:png|webp|jpg|jpeg))"', re.I)
 FX_REF = re.compile(r'"([A-Za-z_][\w ]*)"')
@@ -108,7 +109,7 @@ def fx_defs(scripts, names, files=()):
             blocks[name] = (m.group(2), body)
     auto = {}
     for f in files:
-        if f.lower().startswith('images/') and re.search(r'\.(png|webp|jpe?g)$', f, re.I):
+        if f.lower().startswith('images/') and IMAGE_FILE.search(f):
             auto.setdefault(os.path.splitext(os.path.basename(f))[0].lower(), f)
 
     def files_of(name, depth=0):
@@ -120,14 +121,14 @@ def fx_defs(scripts, names, files=()):
         text = ' '.join(body if len(body) == 1 else body[1:])
         rv = FX_FILE.findall(text)
         for ref in FX_REF.findall(text):
-            if ref != name and not re.search(r'\.(png|webp|jpe?g)$', ref, re.I):
+            if ref != name and not IMAGE_FILE.search(ref):
                 rv += files_of(' '.join(ref.split()), depth + 1)
         return rv
 
     out = {}
     for n in sorted(names):
         key = ('text ' + n[5:]) if n.startswith('text:') else n
-        if re.search(r'\.(png|webp|jpe?g)$', n, re.I):
+        if IMAGE_FILE.search(n):
             out[n] = ('file', [n], '')
         elif key in blocks:
             kind, body = blocks[key]
