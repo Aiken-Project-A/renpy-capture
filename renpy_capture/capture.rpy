@@ -539,15 +539,15 @@ init python:
 
     def _rc_screen_render(self, w, h, st, at):
         rv = _rc_orig_screen_render(self, w, h, st, at)
-        P = _rc_P
-        n = self.screen_name[0]
+        P, n = _rc_P, self.screen_name[0]
         ui = P.active and _rc_is_ui(n)
         if ui or (P.active and n in _RC_TEXT):
-            ids = P.hidden_ids
-            try:
-                self.visit_all(lambda d: ids.add(id(d)))
+            found = []                              # a screen that renders on every frame is walked on every frame:
+            try:                                    # list.append and map(id) do it in C, a lambda is a Python call
+                self.visit_all(found.append)        # for each displayable
             except Exception:
                 pass
+            P.hidden_ids.update(map(id, found))
         if ui:
             return renpy.display.render.Render(w, h)
         return rv
