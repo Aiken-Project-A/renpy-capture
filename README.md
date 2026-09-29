@@ -13,8 +13,8 @@
 <img src="docs/images/hero-original.jpg" width="49%" alt="Sylvie says “Hi there! How was class?” in the game's own dialogue window">
 <img src="docs/images/hero-translation.jpg" width="49%" alt="The same moment in the Russian translation: “Привет! Как тебе урок?”">
 
-<sub>One moment of The Question, the sample game that ships with Ren'Py, in English and in its Russian translation:
-two frames drawn by the game's own engine. The artwork is released under the MIT license.</sub>
+<sub>One moment of The Question, the sample game that ships with Ren'Py, in English and in the Russian translation that
+comes with it: two frames drawn by the game's own engine. The artwork is released under the MIT license.</sub>
 
 ### [See the live example →](https://aiken-project-a.github.io/renpy-capture/)
 
@@ -35,8 +35,10 @@ anyone.
   picture the player sees, with the speaker and the line of the script. Search it; link to any line.
 - **[The tree of choices.](https://aiken-project-a.github.io/renpy-capture/the-question/choices.html)** Every menu and
   every option, down to how each path ends; each option opens its moment in the book.
-- **[The translation beside the original.](https://aiken-project-a.github.io/renpy-capture/the-question-ru/)** Line
-  under line, frame beside frame, in the game's own dialogue window: does the text fit, does the font have the letters.
+- **[The translation beside the original.](https://aiken-project-a.github.io/renpy-capture/the-question-ru/)** For a
+  game that already has a translation (`game/tl/<language>`): every translated line as the game itself draws it, in
+  its own dialogue window, beside the original. Does the text fit, does the font have the letters. renpy-capture shows
+  translations; it does not make them.
 - **Proof that nothing was missed.** After the capture the game's scripts are read, and every scene no path reached
   is named, with its label, file and line.
 
@@ -44,11 +46,11 @@ anyone.
 
 | You are | It gives you |
 |---|---|
-| **Translators** | Every line with its context: who speaks, to whom, what is on screen, what came before. |
-| **Editors and proofreaders** | The whole translation, in the game, behind one link: nothing to install, no routes to replay. |
-| **Authors and testers** | Every route in one run: a line that overflows the window, a missing picture, a branch no player can reach. Capture two builds and compare them. |
+| **Translators** | Every line with its context: who speaks, what is on screen, what came before. |
+| **Editors and proofreaders** | The whole translation as the game shows it, behind one link: nothing to install, no routes to replay. |
+| **Authors and testers** | Every route in one run: see a line that overflows the window or a missing picture, find the branches no player can reach, compare two builds line by line. |
 | **Guide and wiki writers** | The tree of choices with every ending, and a picture for every step. |
-| **Language learners** | A game you love as a bilingual book, line by line. |
+| **Language learners** | A game you love and its translation as a bilingual book, line by line. |
 | **Reviewers and archivists** | Every scene of every branch without playing: before an age rating, for research, to keep a game readable. |
 
 ## Try it
@@ -63,8 +65,8 @@ One command does the whole job: it fetches the official Ren'Py SDK of the game's
 hidden screen, looks for scenes no branch reached, and writes the pages. Run it again to go on after an interruption.
 The Question takes six seconds; a large commercial game of 22,000 lines, about eight minutes.
 
-A translation: capture the original and the translation from `game/tl/russian`, both with the game's dialogue window,
-and open the translation's book, where the original stands beside every line.
+A translation the game already has in `game/tl/russian`: capture the original and the translation, both with the
+game's dialogue window, and open the translation's book, where the original stands beside every line.
 
 ```sh
 renpy-capture capture ~/Games/SomeGame work/ --text
@@ -94,8 +96,8 @@ identical, byte for byte, to the run before.
 | | Playing through | Translation files and tools | renpy-capture |
 |---|:---:|:---:|:---:|
 | Each line in its scene | ✓ | — | ✓ |
-| Every branch, and proof that none was missed | by hand, route by route | every string, reachable or not | ✓ |
-| The translation beside the original | replay in each language | text only | ✓ in the game's window |
+| Every branch, and proof that none was missed | by hand, route by route | all the text, reachable or not | ✓ |
+| The translation beside the original | replay in each language | text only | ✓ frame beside frame, as the game draws it |
 | Search, a link to any line, one page to share | — | search | ✓ |
 | Editing the translation | — | ✓ | — |
 
