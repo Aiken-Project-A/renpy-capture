@@ -1,5 +1,7 @@
-"""Small helpers: reading files that are closed at once, and one name for a script however the engine loaded it."""
+"""Small helpers: reading files that are closed at once, one name for a script however the engine loaded it, and words
+for the lines a person reads."""
 import json
+import os
 import re
 
 
@@ -33,3 +35,9 @@ def script_path(fn):
 def plural(n, word, many=None):
     """"1 job", "3 jobs" ("1 branch", "2 branches" with ``many``): for the lines a person reads."""
     return f'{n} {word if n == 1 else many or word + "s"}'
+
+
+def near(path):
+    """A path as a person reads it: relative when it is under the current folder."""
+    rel = os.path.relpath(path)
+    return path if rel.startswith('..') else rel
