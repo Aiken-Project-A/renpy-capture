@@ -128,6 +128,17 @@ class DisplayTest(unittest.TestCase):
         self.assertNotIn('kwin.log', str(cm.exception.code))
         killed.assert_called_once()
 
+    def test_cleaning_up_a_compositor_that_never_started_is_quiet(self):
+        with tempfile.TemporaryDirectory() as rt, mock.patch.dict(os.environ, {'XDG_RUNTIME_DIR': rt}):
+            k = runner.KWin('rundir', {}, (640, 480))
+            k.cleanup()                                     # no socket yet: nothing to remove, nothing to hide
+            k.sock = 'renpy-capture-test'
+            for name in (k.sock, k.sock + '.lock'):
+                open(os.path.join(rt, name), 'w').close()
+            k.cleanup()
+            self.assertEqual(os.listdir(rt), [])
+            k.cleanup()                                     # already gone
+
 
 class VendorTest(unittest.TestCase):
     """Choosing a GPU vendor keeps every graphics API on it: loading NVIDIA's driver alone wakes a sleeping NVIDIA

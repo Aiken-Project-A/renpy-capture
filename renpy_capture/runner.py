@@ -192,11 +192,13 @@ class KWin:
         kill_group(self.p)
 
     def cleanup(self):
+        if not self.sock:                           # never started
+            return
         rt = os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')
-        for f in (self.sock, (self.sock or '') + '.lock'):
+        for f in (self.sock, self.sock + '.lock'):
             try:
                 os.remove(os.path.join(rt, f))
-            except (OSError, TypeError):
+            except OSError:
                 pass
 
 
