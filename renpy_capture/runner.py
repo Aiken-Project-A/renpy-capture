@@ -684,12 +684,12 @@ def explore(rundir, cfg_path, out, rounds=10, timewarp=4.0, limit=600, workers=1
     cfg = read_json(cfg_path)
     dropped = set()                                 # the branches over the limit; the next round meets them again
     for rnd in range(rounds):
+        engine = dict(timewarp=timewarp, display=display, gpu=gpu, screen=screen, fast=fast, language=language,
+                      text=text, quiet=True)
         if workers > 1:
-            prun(rundir, cfg_path, out, workers, timewarp, batch, display, gpu, screen, fast, language, text,
-                 quiet=True)
+            prun(rundir, cfg_path, out, workers=workers, batch=batch, **engine)
         else:
-            run(rundir, cfg_path, out, timewarp, display=display, gpu=gpu, screen=screen, fast=fast, language=language,
-                text=text, quiet=True)
+            run(rundir, cfg_path, out, **engine)
         stats = report(out, brief=True)             # warnings and failed jobs only; `report` has the whole table
         seen, menus = set(), collections.defaultdict(list)
         looped = set()                              # stopped as a loop: a mini-game gauge moved by screen timers,
