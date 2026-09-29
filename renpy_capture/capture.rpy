@@ -423,15 +423,15 @@ init python:
         Requests from hidden screens (interface, effect screens) do not count, they are not visible; neither does
         the camera: we keep it at its final position, and a camera function (parallax following the mouse) asks for
         a frame on every frame."""
-        rc = renpy.display.render.render_cache
-        hid = set(_rc_P.hidden_ids)
-        for t in renpy.game.context().scene_lists.camera_transform.values():
+        rc, hid, cam = renpy.display.render.render_cache, _rc_P.hidden_ids, set()    # (hid holds hundreds of ids on a
+        for t in renpy.game.context().scene_lists.camera_transform.values():         # big interface: not copied)
             for _i in range(8):
                 if not isinstance(t, renpy.display.transform.Transform):
                     break
-                hid.add(id(t))
+                cam.add(id(t))
                 t = getattr(t, "child", None)
-        return any(id(d) in rc and id(d) not in hid for _when, d in renpy.display.render.redraw_queue)
+        return any(id(d) in rc and id(d) not in hid and id(d) not in cam
+                   for _when, d in renpy.display.render.redraw_queue)
 
     def _rc_skip(waiting):
         """Fast mode: the frames a wait would draw are skipped, the clock goes on step by step (the same values as
@@ -498,7 +498,8 @@ init python:
                     t0 = min(tt)
                     _rc_skip(lambda t: t - t0 < delay and t - start < tmax)
                 return
-        if P.cfg.get("early", True) and P.last_frame and not _rc_animating():
+        moving = _rc_animating()                      # asked once per frame: nothing below changes the answer
+        if P.cfg.get("early", True) and P.last_frame and not moving:
             ctx = renpy.game.context()                # the scene is made of the same things as at the last capture
             files = _rc_files(ctx)                    # and nothing moves: the frame is the same, capture at once
             if _rc_key(ctx, files) == P.last_key:     # without waiting for `settle` (most lines do not change the
@@ -510,7 +511,6 @@ init python:
         if P.pause_delay is not None and P.pause_delay > 0:
             need, most = min(need, P.pause_delay * 0.8), min(most, P.pause_delay * 0.8)
         elapsed = self.frame_time - start
-        moving = _rc_animating()
         if moving and P.cfg.get("peak", True):        # a layer began to fade out (a spark, smoke): capture now, at
             vis = _rc_vis(renpy.game.context())       # its peak, otherwise the settled frame would not show it
             if P.vis_prev is not None and vis < P.vis_prev - 0.02:
