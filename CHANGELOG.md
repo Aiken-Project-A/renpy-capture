@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 — 2026-10-03
 
 ### Easier to use
+- The README is one page for people, in eight languages (`docs/readme/`); everything technical is in `docs/guide.md`.
 - `renpy-capture capture GAME WORKDIR` does the usual way in one command: a starter config, the launch folder, every
   branch, the check for unreached lines and the pages, all in one work folder, ending with what to open. Run it again
   to go on. With `--language` the translation's page shows the original beside it.
