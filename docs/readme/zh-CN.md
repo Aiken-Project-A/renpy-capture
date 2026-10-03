@@ -52,7 +52,7 @@ renpy-capture 在一块隐藏的屏幕上，用游戏自己的引擎运行 Ren'P
 ## 试一试
 
 ```sh
-pipx install git+https://github.com/Aiken-Project-A/renpy-capture
+pipx install renpy-capture
 renpy-capture capture ~/Games/SomeGame work/
 xdg-open work/export/index.html
 ```

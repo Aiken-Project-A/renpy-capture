@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 — 2026-10-03
+
+- renpy-capture is on PyPI: `pipx install renpy-capture`. A release on GitHub is published there by itself (trusted
+  publishing, no token stored anywhere).
+- The README reads the same on PyPI (its pictures and links are absolute); the license is an SPDX expression and the
+  LICENSE file is in the package.
+
 ## 0.2.0 — 2026-10-03
 
 ### Easier to use

@@ -61,7 +61,7 @@ navegador, buscar en él y enviárselo a quien quieras.
 ## Pruébalo
 
 ```sh
-pipx install git+https://github.com/Aiken-Project-A/renpy-capture
+pipx install renpy-capture
 renpy-capture capture ~/Games/SomeGame work/
 xdg-open work/export/index.html
 ```

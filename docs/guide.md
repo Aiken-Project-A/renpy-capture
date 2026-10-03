@@ -26,8 +26,9 @@ one:
 - `window` — your own desktop: the game window is visible while the capture runs; leave it alone.
 
 ```sh
-pipx install git+https://github.com/Aiken-Project-A/renpy-capture
-# or, inside a virtual environment: pip install git+https://github.com/Aiken-Project-A/renpy-capture
+pipx install renpy-capture
+# or, inside a virtual environment: pip install renpy-capture
+# the latest from GitHub, before its release: pipx install git+https://github.com/Aiken-Project-A/renpy-capture
 ```
 
 SDKs are kept in `~/.cache/renpy-capture/sdk` (`RENPY_CAPTURE_SDK` puts them elsewhere).

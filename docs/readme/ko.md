@@ -52,7 +52,7 @@ renpy-capture는 Ren'Py 게임을 보이지 않는 화면에서 그 게임의 �
 ## 사용해 보기
 
 ```sh
-pipx install git+https://github.com/Aiken-Project-A/renpy-capture
+pipx install renpy-capture
 renpy-capture capture ~/Games/SomeGame work/
 xdg-open work/export/index.html
 ```

@@ -62,7 +62,7 @@ ouvrez-le dans un navigateur, faites-y des recherches, envoyez-le à qui vous vo
 ## Essayer
 
 ```sh
-pipx install git+https://github.com/Aiken-Project-A/renpy-capture
+pipx install renpy-capture
 renpy-capture capture ~/Games/SomeGame work/
 xdg-open work/export/index.html
 ```
