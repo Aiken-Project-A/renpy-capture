@@ -3,7 +3,7 @@ import os
 import tempfile
 import unittest
 
-from renpy_capture.util import near, plural, read_json, read_jsonl, script_path
+from renpy_capture.util import near, plural, read_done, read_json, read_jsonl, script_path
 
 
 class UtilTest(unittest.TestCase):
@@ -32,6 +32,15 @@ class UtilTest(unittest.TestCase):
             with open(p, 'w', encoding='utf-8') as f:
                 f.write('{"a": "é"}')
             self.assertEqual(read_json(p), {'a': 'é'})
+
+    def test_done_jobs_one_per_line(self):
+        """An id may contain spaces: done.txt is read line by line, not word by word."""
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, 'done.txt')
+            self.assertEqual(read_done(p), set())                   # no file yet: nothing is done
+            with open(p, 'w', encoding='utf-8') as f:
+                f.write('my job\nstart~1\n\n')
+            self.assertEqual(read_done(p), {'my job', 'start~1'})
 
     def test_a_broken_line_of_a_log_is_named(self):
         with tempfile.TemporaryDirectory() as d:

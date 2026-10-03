@@ -9,6 +9,7 @@ image glow_orb = Composite((160, 160), (0, 0), Solid("#332200", xsize=160, ysize
                             (10, 10), Solid("#ffcc55", xsize=140, ysize=140))
 image flourish_mark = Text("*", size=90, color="#ffffff")
 image veteran_relic = Solid("#886633", xsize=120, ysize=120)
+image caption_card = Text("Chapter Two", size=48, color="#ffffff", xalign=0.5, yalign=0.2)   # hidden by hide_tags
 
 # Quinn's click-to-continue indicator blinks for ever: a static scene with it is still at rest.
 image quinn_ctc:

@@ -5,7 +5,8 @@ answer, renpy.pause/{w=}/{nw}, a timed choice that times out to a default, NVL m
 layeredimage whose attributes change between lines, one-shot and endless ATL, dissolve/fade transitions, a screen
 that is part of the scene next to a HUD screen that is not, a shared procedure reached by call/return from two
 scenes, renpy.random and a full restart; its own say and choice screens, drawn with text, and a click-to-continue
-indicator that blinks for ever.
+indicator that blinks for ever; and a scene that changes while its statements stay the same (one show line run with
+other arguments, a screen whose text follows a variable, a caption the config hides however it is shown).
 
 Opt-in (it downloads the SDK once and needs a display backend): RENPY_CAPTURE_IT=1 python -m unittest
 tests.test_torture. RENPY_CAPTURE_IT_VERSION picks the SDK (default 8.3.2), RENPY_CAPTURE_IT_DISPLAY and
@@ -40,13 +41,15 @@ CONFIG = {
         {'id': 'start', 'label': 'start'},
         # "Consult the veteran's logbook" is gated on a flag exploration can never set on its own (nothing in the
         # game ever does); an exact job with a scope override is what `gaps` is for.
-        {'id': 'veteran', 'label': 'start', 'scope': {'veteran_mode': True}, 'choices': [0, 1, 0]},
+        {'id': 'veteran mode', 'label': 'start', 'scope': {'veteran_mode': True}, 'choices': [0, 1, 0]},   # (an id
+        # with a space: a second run must still know it is done)
         # demonstrates wait_menus: the capture does not answer this menu itself but waits (game time) for the game's
         # own timer to resolve it, exactly as it would while a real player deliberated. wait_max only answers a menu
         # whose timer never comes; it is large here, so the test sees the game lead on by itself.
         {'id': 'timeout_demo', 'label': 'start', 'choices': [1], 'wait_menus': '^Quick,', 'wait_max': 30},
     ],
     'ui': '^hud$',
+    'hide_tags': '^caption_card$',
     'settle': 0.3,
     'settle_max': 1.5,
     'max_steps': 3000,
@@ -66,7 +69,7 @@ NVL_LINES = (
 )
 
 SCENES = ('menus_scene', 'menus_quiz', 'timing_scene', 'nvl_scene', 'layered_scene', 'atl_scene',
-          'transitions_scene', 'customscreen_scene', 'random_scene', 'ending_scene')
+          'transitions_scene', 'customscreen_scene', 'random_scene', 'changes_scene', 'ending_scene')
 
 
 @unittest.skipUnless(os.environ.get('RENPY_CAPTURE_IT'), 'set RENPY_CAPTURE_IT=1 to run the end-to-end test')
@@ -162,6 +165,70 @@ class TortureTest(unittest.TestCase):
         for r in self.records(text):
             if r['ev'] == 'shot' and r.get('what') in self.QUINN:
                 self.assertNotEqual(r['frame'], plain[r['job'], r['seq']])     # the window is in the frame
+        first, second = self.shots_of(*NVL_LINES, out=text)                     # with text the NVL page is drawn,
+        self.assertNotEqual(first['frame'], second['frame'])                    # a line more on each frame
+
+    def shots_of(self, *whats, out=None):
+        """The captures of these lines, in the order of the log, from the first job that says them all."""
+        by_job = collections.defaultdict(list)
+        for r in self.records(out):
+            if r['ev'] == 'shot' and r.get('what') in whats:
+                by_job[r['job']].append(r)
+        return next(v for v in by_job.values() if {r['what'] for r in v} == set(whats))
+
+    def test_the_same_show_with_other_arguments_is_a_new_frame(self):
+        """One show line run three times with other arguments: the key of the scene is the same each time (tag,
+        attributes, the line of the show), the picture is not."""
+        hops = self.shots_of('The marker hops to its next spot.')
+        self.assertEqual(len(hops), 3)
+        self.assertEqual(len({r['frame'] for r in hops}), 3, hops)
+
+    def test_a_screen_that_follows_a_variable_is_a_new_frame(self):
+        """A screen of the scene shown once, its text changed by a variable: a new picture, then the same one again
+        while nothing changes."""
+        one, two, stays = self.shots_of('The tally on the wall reads one.', 'The tally on the wall now reads two.',
+                                        'Nothing changes; the tally stays at two.')
+        self.assertNotEqual(one['frame'], two['frame'])
+        self.assertEqual(two['frame'], stays['frame'])
+
+    def test_hide_tags_hide_python_shows_too(self):
+        """hide_tags keeps the caption out of the picture whether the show statement or renpy.show shows it: both
+        lines keep the frame of the bare wall before them and log the caption as an effect."""
+        bare, stmt, py = self.shots_of('The wall is bare again.', 'A caption hangs here, but the config hides it.',
+                                       'The same caption, shown from Python this time.')
+        self.assertEqual({stmt['frame'], py['frame']}, {bare['frame']})
+        for r in (stmt, py):
+            self.assertFalse([s for s in r['shown'] if s.split()[0] == 'caption_card'], r)
+            self.assertTrue([f for f in r.get('fx', []) if f.startswith('text:')], r)
+
+    def test_the_nvl_page_is_drawn_with_text_only(self):
+        """Without text the NVL page is not drawn, like the dialogue window: Ivy's two lines show the scene alone.
+        (Its menu is answered all the same: test_nothing_left_uncaptured finds both pages after it.)"""
+        first, second = self.shots_of(*NVL_LINES)
+        self.assertEqual(first['frame'], second['frame'])
+
+    def test_records_name_the_games_calls_only(self):
+        """The return points in a record are the game's: the call of the job itself (in the capture's own script)
+        is not one."""
+        recs = [r for r in self.records() if r['ev'] == 'shot']
+        self.assertFalse([r for r in recs for f, _ln in r['stack'] if 'renpy_capture' in f])
+        self.assertTrue([r for r in recs if r['stack']])           # the shared procedure is still named by its callers
+
+    def test_attributes_in_a_fixed_order(self):
+        for r in self.records():
+            for s in r.get('shown', []):
+                self.assertEqual(s.split()[1:], sorted(s.split()[1:]), r)
+
+    def test_a_second_run_finds_every_job_done(self):
+        """Running a finished capture again captures nothing: done.txt is read line by line, an id with a space
+        included."""
+        again = os.path.join(self.tmp, 'out-resume')
+        shutil.copytree(self.out, again)
+        with contextlib.redirect_stdout(io.StringIO()):
+            runner.run(self.rundir, self.cfg, again, display=DISPLAY, gpu=GPU)
+        starts = collections.Counter(r['job'] for r in self.records(again) if r['ev'] == 'start')
+        self.assertIn('veteran mode', starts)
+        self.assertEqual(set(starts.values()), {1}, starts)
 
     def test_export_covers_every_scene(self):
         dest = os.path.join(self.tmp, 'export')

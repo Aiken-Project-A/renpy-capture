@@ -31,14 +31,14 @@ Every record has `ev` (the kind) and `job`.
 | `tl_file`, `tl_line` | When a translation is shown: where its text is (`game/tl/russian/script.rpy`, 40); `file` and `line` stay those of the line it translates. |
 | `menu` | For menus: `n` (the menu's number in the job), `options` (the captions) and `pick` (the option taken), or `wait: true` when the capture waited on it; `caption`, the line shown with the menu (its own line, or the line said right before it). |
 | `pause` | The length of the pause, for pauses. |
-| `stack` | Return points of the calls in progress (`[file, line]`, innermost last). |
-| `shown` | Images on the master layer: tag and attributes, e.g. `"sylvie green smile"`. |
+| `stack` | Return points of the game's calls in progress (`[file, line]`, innermost last, at most six); the call that starts the job is not one. |
+| `shown` | Images on the master layer: tag and attributes in alphabetical order, e.g. `"sylvie green smile"`. |
 | `screens` | Screens that are part of the scene (not matched by `ui`). |
 | `files` | Image files the scene is drawn from. |
 | `cam` | The camera, when it is not at rest. |
 | `fx` | Effects running on this line but kept out of the frame (see `null_images`, `hide_tags`, `fx_screens`, `fx_files`). |
 | `frame` | The sha1 of the frame (`frames/<sha1>.png`); missing when `skip` is set. |
-| `same` | The scene has not changed since the previous capture; `frame` is the previous one (never with `text`, where every line is a frame of its own). |
+| `same` | The scene has not changed since the previous capture, and `frame` is the previous one. At rest: nothing was shown, hidden or put on a layer and nothing on the screen was drawn anew. In the middle of an endless animation: the same images, shown from the same lines with the same arguments (the animation's phases are not new frames). Never with `text`, where every line is a frame of its own. |
 | `anim` | Captured while an endless animation was running (its phase is fixed by the frame clock). |
 | `peak` | Captured as a layer began to fade out. |
 | `skip` | The image files that made the frame skipped. |
