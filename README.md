@@ -5,16 +5,16 @@
 **Every line of a Ren'Py game, in its scene, in every branch — without playing it.**
 
 [![Tests](https://github.com/Aiken-Project-A/renpy-capture/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/Aiken-Project-A/renpy-capture/actions/workflows/tests.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-2b6cb0)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-2b6cb0)](https://github.com/Aiken-Project-A/renpy-capture/blob/main/LICENSE)
 ![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-2b6cb0)
 ![Linux](https://img.shields.io/badge/platform-Linux-2b6cb0)
 ![Ren'Py 7.8 | 8.2 | 8.3](https://img.shields.io/badge/Ren%27Py-7.8%20%7C%208.2%20%7C%208.3-2b6cb0)
 
-**English** · [Русский](docs/readme/ru.md) · [Українська](docs/readme/uk.md) · [简体中文](docs/readme/zh-CN.md) ·
-[日本語](docs/readme/ja.md) · [한국어](docs/readme/ko.md) · [Español](docs/readme/es.md) · [Français](docs/readme/fr.md)
+**English** · [Русский](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/readme/ru.md) · [Українська](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/readme/uk.md) · [简体中文](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/readme/zh-CN.md) ·
+[日本語](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/readme/ja.md) · [한국어](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/readme/ko.md) · [Español](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/readme/es.md) · [Français](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/readme/fr.md)
 
-<img src="docs/images/hero-original.jpg" width="49%" alt="Sylvie says “Hi there! How was class?” in the game's own dialogue window">
-<img src="docs/images/hero-translation.jpg" width="49%" alt="The same moment in the Russian translation: “Привет! Как тебе урок?”">
+<img src="https://raw.githubusercontent.com/Aiken-Project-A/renpy-capture/main/docs/images/hero-original.jpg" width="49%" alt="Sylvie says “Hi there! How was class?” in the game's own dialogue window">
+<img src="https://raw.githubusercontent.com/Aiken-Project-A/renpy-capture/main/docs/images/hero-translation.jpg" width="49%" alt="The same moment in the Russian translation: “Привет! Как тебе урок?”">
 
 <sub>One moment of The Question, the sample game that ships with Ren'Py, in English and in the Russian translation that
 comes with it: two frames drawn by the game's own engine. The artwork is released under the MIT license.</sub>
@@ -30,8 +30,8 @@ anyone.
 ## What you get
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/book-dark.jpg">
-  <img src="docs/images/book.jpg" alt="The page of a capture: each picture of the game with the lines spoken over it, and a menu with the option taken">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Aiken-Project-A/renpy-capture/main/docs/images/book-dark.jpg">
+  <img src="https://raw.githubusercontent.com/Aiken-Project-A/renpy-capture/main/docs/images/book.jpg" alt="The page of a capture: each picture of the game with the lines spoken over it, and a menu with the option taken">
 </picture>
 
 - **[The book of the game.](https://aiken-project-a.github.io/renpy-capture/the-question/)** Every line beside the
@@ -109,7 +109,7 @@ renpy-capture does not replace your translation tools: it shows what they produc
 ## Good to know
 
 - It answers menus; it does not play mini-games. A map, a quiz or a timed challenge can be guided by the game's
-  config, see [the guide](docs/guide.md#games-that-need-help).
+  config, see [the guide](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/guide.md#games-that-need-help).
 - The official SDK has to run the game: a game shipped with a modified engine may not start.
 
 <details>
@@ -134,9 +134,9 @@ flowchart LR
 
 ## More
 
-- **[The guide](docs/guide.md)**: installing, the hidden screen, translations, every command, what each file holds,
+- **[The guide](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/guide.md)**: installing, the hidden screen, translations, every command, what each file holds,
   games that need help, when something is off.
-- [The config](docs/config.md) and [the output](docs/output.md), field by field · [Changelog](CHANGELOG.md)
+- [The config](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/config.md) and [the output](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/output.md), field by field · [Changelog](https://github.com/Aiken-Project-A/renpy-capture/blob/main/CHANGELOG.md)
 
 ## Be kind to the authors
 
@@ -144,4 +144,4 @@ Capture games you own. The pictures and the words are their authors' work: do no
 
 ## License
 
-MIT, see [LICENSE](LICENSE). Made by Aiken and Claude.
+MIT, see [LICENSE](https://github.com/Aiken-Project-A/renpy-capture/blob/main/LICENSE). Made by Aiken and Claude.
