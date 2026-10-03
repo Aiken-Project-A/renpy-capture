@@ -37,6 +37,21 @@
 - A picture already saved by the engine is recognised before it is compressed again.
 
 ### Fixed
+- A line could keep the picture of the line before it although the scene had changed: the same show line run with
+  other arguments (`show sq at Position(xpos=x)` in a loop), a screen of the scene whose text follows a variable, an
+  image on a layer of its own, an effect that had moved on. At rest a frame is now reused only when nothing was shown,
+  hidden or put on a layer and the engine drew nothing anew since the last capture; otherwise the pixels decide. In
+  the middle of an endless animation the scene's key decides, as before (its phases are not new frames), and the key
+  now knows the arguments of a show.
+- Without `--text` the NVL page is no longer drawn, as the documentation always said: like the dialogue window, it
+  is replaced by an invisible one. A menu on the NVL page (`menu (nvl=True)`, `nvl_menu`) is answered like any other.
+- `hide_tags` hides an image shown by `renpy.show` as well as by the show statement.
+- A job whose id has a space is no longer captured again on every resume (`done.txt` is read line by line).
+- A job that ends with an error while a screen is being built no longer breaks the jobs after it in the same engine.
+- `shown` lists an image's attributes in a fixed order (Ren'Py 8 keeps them in a set, the order changed from run to
+  run), and the engine runs with a fixed `PYTHONHASHSEED`, so a game's own sets keep their order too.
+- `stack` lists only the game's return points: every record named the capture's own call of the job.
+- `skip` names each file once, however many patterns match it.
 - The label of a line is the label it belongs to in the script; after a `call` returned, lines were named after the
   procedure called.
 - A game shipped as `.rpy` sources could not be captured twice (the engine's compiled scripts were taken for changes

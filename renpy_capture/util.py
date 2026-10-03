@@ -32,6 +32,13 @@ def read_jsonl(path):
         return recs
 
 
+def read_done(path):
+    """The jobs a capture has finished: done.txt holds one id per line, and an id may contain spaces."""
+    if not os.path.exists(path):
+        return set()
+    return {line for line in read_text(path).splitlines() if line}
+
+
 def script_path(fn):
     """The engine names a script `game/script.rpy` when it loads it from disk and `script.rpyc` when it loads it from
     an archive; both become the path of the .rpy source inside game/ (`script.rpy`)."""

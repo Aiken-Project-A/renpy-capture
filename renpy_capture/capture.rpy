@@ -16,19 +16,21 @@
 ## event.
 init offset = 999
 
-# The game's own dialogue window, speech bubbles and menus, kept before the stand-ins below replace them: screens are
-# defined at init -500 plus the offset (the game's at -500, these at 499), so this runs at 498. A capture with text
-# (`text`) puts them back at init 1000.
+# The game's own dialogue window, speech bubbles, NVL page and menus, kept before the stand-ins below replace them:
+# screens are defined at init -500 plus the offset (the game's at -500, these at 499), so this runs at 498. A capture
+# with text (`text`) puts them back at init 1000.
 init -501 python:
     _rc_game_screens = dict((k, v) for k, v in renpy.display.screen.screens.items()
-                            if k[0] in ("say", "bubble", "choice"))
+                            if k[0] in ("say", "bubble", "choice", "nvl", "nvl_choice"))
 
 init 1 python:
     def _rc_text_screens():
-        """With text: the game's own screens again. A dialogue window the game does not define is drawn by the
-        engine itself (the stand-in goes); a menu needs a choice screen to be answered, so that stand-in stays."""
+        """With text: the game's own screens again. A dialogue window or NVL page the game does not define is drawn
+        by the engine itself (the stand-in goes); a menu needs a choice screen to be answered, so that stand-in
+        stays."""
         s = renpy.display.screen
-        for k in [k for k in s.screens if k[0] in ("say", "bubble") and k not in _rc_game_screens]:
+        for k in [k for k in s.screens if k[0] in ("say", "bubble", "nvl", "nvl_choice")
+                  and k not in _rc_game_screens]:
             del s.screens[k]
             s.screens_by_name[k[0]].pop(k[1], None)
         for k, v in _rc_game_screens.items():
@@ -45,6 +47,13 @@ screen bubble(who, what):
     text what id "what" size 1 color "#0000" outlines [] xpos -50
 
 screen choice(items):
+    null
+
+screen nvl(dialogue, items=None):
+    for d in dialogue:                     # the engine takes the line's own text back from the page (what_id)
+        text d.what id d.what_id size 1 color "#0000" outlines [] xpos -50
+
+screen nvl_choice(dialogue, items=None):        # (an NVL menu passes the page along)
     null
 
 screen quick_menu():
@@ -88,7 +97,8 @@ init python:
                      stubs=set(), timers=None, wait=None, wait_node=None, wait_t0=0.0, nulls=set(),
                      stop_labels=None, trans=False, fx_screens=None, fx_files=None, hidden_text={}, dt=0.0,
                      vclock=0.0, cap_anim=False, cap_peak=False, vis_prev=None, hidden_ids=set(), persist0=None,
-                     prof=None, raw_seen={}, fast=False, label_lines=None, text=False)
+                     prof=None, raw_seen={}, fast=False, label_lines=None, text=False, dirty=False, own_file=None,
+                     last_renders=[])
 
     def _rc_rx(v):
         return _rc_re.compile(v) if v else None
@@ -98,7 +108,9 @@ init python:
         P.log.write(_rc_json.dumps(rec, ensure_ascii=False) + "\n")
         P.log.flush()
 
-    _RC_TEXT = ("say", "bubble", "choice", "nvl")    # with text (`text`) always drawn: the window, bubbles, menus
+    _RC_TEXT = ("say", "bubble", "choice", "nvl", "nvl_choice")   # with text (`text`) always drawn: the window,
+                                                                    # bubbles, the NVL page, menus
+    _RC_STANDIN = _RC_TEXT + ("quick_menu", "notify", "skip_indicator")   # invisible without text (above)
 
     def _rc_is_ui(name):
         P = _rc_P
@@ -140,7 +152,8 @@ init python:
                 attrs = renpy.get_attributes(tag, "master") or ()
             except Exception:
                 attrs = ()
-            rv.append(" ".join((tag,) + tuple(attrs)))
+            rv.append(" ".join((tag,) + tuple(sorted(attrs))))    # (Ren'Py 8 keeps them in a set: sorted, for the
+                                                                    # same record on every run)
         scr = []
         for e in ctx.scene_lists.layers.get("screens", []):
             n = _rc_screen_name(e.displayable)
@@ -188,6 +201,23 @@ init python:
             if n is not None and not _rc_is_ui(n):
                 scr.append((n, _rc_P.where.get(("screen", n))))
         return repr((ents, scr, tuple(files), _rc_camstate(ctx)))
+
+    def _rc_renders(ctx):
+        """What the engine draws the scene from: the renders it keeps for the displayables on every layer, except what
+        is not drawn (interface screens, the stand-ins of the text). The engine renders a displayable again only when
+        it changes or moves (a screen, every interaction), so the very same renders as at the last capture mean the
+        same pixels, whatever the key does not know: a screen's text, the arguments of a show, an image on a layer of
+        its own."""
+        rc = renpy.display.render.render_cache
+        rv = []
+        for layer, ents in sorted(ctx.scene_lists.layers.items()):
+            for e in ents:
+                d = e.displayable
+                n = _rc_screen_name(d)
+                if n is not None and (_rc_is_ui(n) or (n in _RC_STANDIN and not _rc_P.text)):
+                    continue
+                rv.extend((rc.get(id(d)) or {}).values())
+        return rv
 
     def _rc_vis(ctx):
         """Visibility of the scene: the sum of the opacities of the shown master-layer images (empty effects
@@ -304,13 +334,14 @@ init python:
         if P.pause_delay is not None:
             rec["pause"] = P.pause_delay
         stack = []                                 # return points of the calls (lines in the calling labels): a frame
-        for name in ctx.return_stack[-6:]:         # shown by a shared procedure can be named after its caller
-            try:
+        for name in ctx.return_stack:              # shown by a shared procedure can be named after its caller; the
+            try:                                   # call of the job itself (in this file) is not the game's
                 rn = renpy.game.script.lookup(name)
-                stack.append([rn.filename, rn.linenumber])
+                if rn.filename != P.own_file:
+                    stack.append([rn.filename, rn.linenumber])
             except Exception:
                 pass
-        rec["stack"] = stack
+        rec["stack"] = stack[-6:]
         rec["shown"], rec["screens"] = _rc_shown(ctx)
         if files is None:
             files = _rc_files(ctx)
@@ -325,14 +356,19 @@ init python:
         cam = _rc_camstate(ctx)
         if cam:
             rec["cam"] = cam
-        hit = [f for f in files for r in P.skip if r.search(f)]
+        hit = [f for f in files if any(r.search(f) for r in P.skip)]
         key = _rc_key(ctx, files)
+        renders, last = _rc_renders(ctx), P.last_renders
+        P.last_renders = renders                   # (kept: a render alive cannot pass its id to another one)
         if hit:
             rec["skip"] = hit
             P.last_key = P.last_frame = None
-        elif key == P.last_key and P.last_frame and not P.text:    # (the key knows the scene, not the text)
-            rec["frame"] = P.last_frame
-            rec["same"] = True
+        elif key == P.last_key and P.last_frame and not P.text and (P.cap_anim or P.cap_peak or (
+                not P.dirty and len(renders) == len(last) and all(a is b for a, b in zip(renders, last)))):
+            rec["frame"] = P.last_frame            # the same scene: in the middle of an endless animation the key says
+            rec["same"] = True                     # so (its phases are not new frames); at rest, besides, nothing was
+                                                   # shown, hidden or put on a layer since the last capture and nothing
+                                                   # drawn anew; otherwise the pixels decide
         else:
             pr = P.prof
             t0 = _rc_time.time()
@@ -362,11 +398,14 @@ init python:
             pr["shots"] += 1
             pr["shot"] += t1 - t0
             rec["frame"] = h
-            P.last_key, P.last_frame = key, h
+            P.last_key, P.last_frame, P.dirty = key, h, False
 
         # How to end the interaction.
         value = True
         choice = renpy.get_screen("choice")
+        if choice is None:                             # NVL mode: the menu is on the NVL page (nvl_choice, or nvl)
+            choice = next((s for s in (renpy.get_screen("nvl_choice"), renpy.get_screen("nvl"))
+                           if s is not None and s.scope.get("items")), None)
         if choice is not None:
             items = [i for i in choice.scope.get("items", []) if getattr(i, "action", None) is not None]
             plan = P.job.get("choices", [])
@@ -659,52 +698,68 @@ init python:
         n = _rc_node()
         return (getattr(n, "filename", None), getattr(n, "linenumber", None))
 
-    _rc_orig_show = renpy.exports.show
+    # Where every image and screen was shown, and with what (part of the scene's key: file and line of the show, the
+    # plain arguments of its transforms — `show sq at Position(xpos=x)` in a loop is one line with other arguments),
+    # and whether anything was shown, hidden or put on a layer since the last capture (`dirty`). The statements call
+    # config.show, config.hide and config.scene (references to the original functions), Python code calls renpy.show
+    # and the rest: both are wrapped.
+    def _rc_plain(v):
+        return isinstance(v, (int, float, str, bool, type(None))) or \
+            (isinstance(v, tuple) and all(isinstance(x, (int, float, str, bool, type(None))) for x in v))
 
-    def _rc_show(name, *args, **kwargs):
-        if _rc_P.active:
-            nm = tuple(name.split()) if isinstance(name, str) else tuple(name)
-            _rc_P.where[kwargs.get("tag") or nm[0]] = _rc_here()
-        return _rc_orig_show(name, *args, **kwargs)
+    def _rc_args(at_list):
+        """The arguments of the transforms a show puts an image in (the properties of Transform/Position, the
+        parameters of a transform statement): plain values only, so that the same show twice is the same."""
+        rv = []
+        for t in at_list or ():
+            for d in (getattr(t, "kwargs", None), getattr(getattr(t, "context", None), "context", None)):
+                if isinstance(d, dict):
+                    rv.append(tuple((k, v) for k, v in sorted(d.items()) if _rc_plain(v)))
+        return tuple(rv)
 
-    renpy.exports.show = _rc_show
-    _rc_orig_cfg_show = config.show                     # the show statement calls config.show (a reference to the
-                                                        # original function)
-    def _rc_cfg_show(name, *args, **kwargs):
-        if _rc_P.active:
-            nm = tuple(name.split()) if isinstance(name, str) else tuple(name)
-            _rc_P.where[kwargs.get("tag") or nm[0]] = _rc_here()
-        return _rc_orig_cfg_show(name, *args, **kwargs)
+    def _rc_showing(orig):
+        def show(name, *args, **kwargs):
+            if _rc_P.active:
+                nm = tuple(name.split()) if isinstance(name, str) else tuple(name)
+                at = kwargs.get("at_list", args[0] if args else ())
+                _rc_P.where[kwargs.get("tag") or nm[0]] = _rc_here() + (_rc_args(at),)
+                _rc_P.dirty = True
+            return orig(name, *args, **kwargs)
+        return show
 
-    config.show = _rc_cfg_show
+    def _rc_scening(orig):
+        def scene(layer="master", *args, **kwargs):
+            if _rc_P.active:
+                _rc_P.dirty = True
+                if layer == "master":
+                    _rc_P.where = {k: v for k, v in _rc_P.where.items() if isinstance(k, tuple)}
+                    _rc_P.hidden_text.clear()
+            return orig(layer, *args, **kwargs)
+        return scene
 
-    _rc_orig_scene = renpy.exports.scene
-
-    def _rc_scene(layer="master"):
-        if _rc_P.active and layer == "master":
-            _rc_P.where = {k: v for k, v in _rc_P.where.items() if isinstance(k, tuple)}
-            _rc_P.hidden_text.clear()
-        return _rc_orig_scene(layer)
-
-    renpy.exports.scene = _rc_scene
-    _rc_orig_cfg_scene = config.scene
-
-    def _rc_cfg_scene(layer="master"):
-        if _rc_P.active and layer == "master":
-            _rc_P.where = {k: v for k, v in _rc_P.where.items() if isinstance(k, tuple)}
-            _rc_P.hidden_text.clear()
-        return _rc_orig_cfg_scene(layer)
-
-    config.scene = _rc_cfg_scene
-
-    _rc_orig_show_screen = renpy.exports.show_screen
+    def _rc_changing(orig):
+        def change(*args, **kwargs):
+            if _rc_P.active:
+                _rc_P.dirty = True
+            return orig(*args, **kwargs)
+        return change
 
     def _rc_show_screen(_screen_name, *args, **kwargs):
         if _rc_P.active:
             _rc_P.where[("screen", _screen_name)] = _rc_here()
+            _rc_P.dirty = True
         return _rc_orig_show_screen(_screen_name, *args, **kwargs)
 
+    _rc_orig_show_screen = renpy.exports.show_screen
     renpy.exports.show_screen = _rc_show_screen
+    renpy.exports.show = _rc_showing(renpy.exports.show)
+    config.show = _rc_showing(config.show)
+    renpy.exports.scene = _rc_scening(renpy.exports.scene)
+    config.scene = _rc_scening(config.scene)
+    for _rc_k in ("hide", "hide_screen", "layer_at_list", "show_layer_at"):
+        if hasattr(renpy.exports, _rc_k):
+            setattr(renpy.exports, _rc_k, _rc_changing(getattr(renpy.exports, _rc_k)))
+    config.hide = _rc_changing(config.hide)
 
     def _rc_pulse():
         """A pulse every 2 s with what is running right now (to diagnose hangs): pulse.json in the output."""
@@ -802,17 +857,18 @@ init python:
         if getattr(P, "set_timer", None) is not None:   # timers created before our replacement (PERIODIC, when the
             for _rc_ev in (renpy.display.core.PERIODIC, renpy.display.core.REDRAW, renpy.display.core.TIMEEVENT):
                 P.set_timer(_rc_ev, 0)                  # interface was created) are switched off with the real one
+        P.own_file = getattr(renpy.game.script.lookup("_rc_job"), "filename", None)
         P.persist0 = _rc_copy.deepcopy(vars(persistent))   # persistent data (seen flags, gallery) as at the start
         P.old_scene0 = dict(renpy.game.interface.old_scene)   # the old screen for the first transition, as at start
         done = set()
         dpath = _rc_os.path.join(P.out, "done.txt")
         if _rc_os.path.exists(dpath):
-            done = set(open(dpath, encoding="utf-8").read().split())
+            done = set(l for l in open(dpath, encoding="utf-8").read().splitlines() if l)   # (an id may have spaces)
         for job in cfg["jobs"]:
             if job["id"] in done:
                 continue
             P.job, P.seq, P.menu_i, P.lines, P.label, P.scene = job, 0, 0, {}, None, None
-            P.where, P.last_key, P.last_frame, P.menus_seen = {}, None, None, {}
+            P.where, P.last_key, P.last_frame, P.menus_seen, P.dirty, P.last_renders = {}, None, None, {}, False, []
             P.hidden_text = {}
             _rc_pd = vars(persistent)
             _rc_pd.clear()
@@ -821,6 +877,8 @@ init python:
             _rc_seed = _rc_zlib.crc32(job["id"].encode("utf-8"))   # choices) is the same in every run: seeded
             renpy.random.seed(_rc_seed)                 # from the job's id
             _rc_random.seed(_rc_seed)
+            renpy.ui.reset()                           # a job that died while a screen was being built (an
+                                                        # exception) left the stack of widgets open: start clean
             renpy.game.interface.old_scene = dict(P.old_scene0)   # as in a fresh engine: enter_context does not
                                                         # reset it, and the frame of the previous job leaked (an empty
                                                         # one loses the first transition: Ren'Py skips it)
@@ -902,8 +960,6 @@ init python:
         # config.show
         _rc_P.hide_tags = _rc_rx(_rc_P.cfg.get("hide_tags"))
         if _rc_P.hide_tags is not None:
-            _rc_orig_show = config.show
-
             def _rc_text_of(name, what):
                 """The words of a caption: the image parameter of `show text "…"`, the text of `show expression
                 Text(…)`."""
@@ -916,23 +972,27 @@ init python:
                     pass
                 return str(name)
 
-            def _rc_show(name, *args, **kwargs):
-                tag = kwargs.get("tag") or (name[0] if isinstance(name, tuple) and name else str(name).split()[0])
-                if _rc_P.hide_tags.search(str(tag)):
-                    if _rc_P.active:                   # not drawn, but logged as an effect of the line (fx)
-                        _rc_P.hidden_text[str(tag)] = _rc_text_of(name, kwargs.get("what"))
-                    return
-                return _rc_orig_show(name, *args, **kwargs)
+            def _rc_hiding(orig):
+                def show(name, *args, **kwargs):
+                    tag = kwargs.get("tag") or (name[0] if isinstance(name, tuple) and name else str(name).split()[0])
+                    if _rc_P.hide_tags.search(str(tag)):
+                        if _rc_P.active:               # not drawn, but logged as an effect of the line (fx)
+                            _rc_P.hidden_text[str(tag)] = _rc_text_of(name, kwargs.get("what"))
+                        return
+                    return orig(name, *args, **kwargs)
+                return show
 
-            config.show = _rc_show
-            _rc_orig_hide = config.hide
+            def _rc_unhiding(orig):
+                def hide(name, *args, **kwargs):
+                    tag = name[0] if isinstance(name, tuple) and name else str(name).split()[0]
+                    _rc_P.hidden_text.pop(str(tag), None)
+                    return orig(name, *args, **kwargs)
+                return hide
 
-            def _rc_hide(name, *args, **kwargs):
-                tag = name[0] if isinstance(name, tuple) and name else str(name).split()[0]
-                _rc_P.hidden_text.pop(str(tag), None)
-                return _rc_orig_hide(name, *args, **kwargs)
-
-            config.hide = _rc_hide
+            config.show = _rc_hiding(config.show)             # the statement and Python code (renpy.show) alike
+            renpy.exports.show = _rc_hiding(renpy.exports.show)
+            config.hide = _rc_unhiding(config.hide)
+            renpy.exports.hide = _rc_unhiding(renpy.exports.hide)
         # At rest means the first frame of the animation: the leading instant lines of its ATL (up to the first one
         # that takes time). For a typical shake that is "xoffset 0 yoffset 0" — the game puts the sprite back in
         # place, while an empty rest froze the middle of the previous shake. Without such lines (the shake starts

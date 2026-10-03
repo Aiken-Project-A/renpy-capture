@@ -1,7 +1,8 @@
 # Torture Test — an original sample game for renpy-capture's end-to-end tests, covering features "The Question"
 # (the Ren'Py SDK's own sample game) does not exercise: nested and gated menus, a quiz that retries, timed events,
-# NVL mode, a layered sprite, ATL (one-shot and endless), transitions, screens, a shared procedure, randomness and
-# a full restart. Every line is original English text; every picture is made in code (see art.rpy).
+# NVL mode with a menu on its page, a layered sprite, ATL (one-shot and endless), transitions, screens, a shared procedure, randomness, a
+# full restart, and scenes that change without a new statement on the line. Every line is original English text;
+# every picture is made in code (see art.rpy).
 
 define narrator_ivy = Character("Ivy", kind=nvl)
 define pip = Character("Pip", color="#ffdd66")
@@ -31,6 +32,8 @@ label start:
             call customscreen_scene
         "Random event":
             call random_scene
+        "Same line, new picture":
+            call changes_scene
         "The ending":
             call ending_scene
     hide screen hud
@@ -101,6 +104,11 @@ label nvl_scene:
     narrator_ivy "Let me tell you something in a different mode entirely."
     narrator_ivy "Here, every line stays on the page instead of replacing the one before it."
     "This particular line has no speaker at all, only the page itself."
+    menu (nvl=True):
+        "Turn the page":
+            narrator_ivy "The next page is blank, waiting for ink."
+        "Close the book":
+            narrator_ivy "The cover shuts with a soft thump."
     nvl clear
     return
 
@@ -168,4 +176,30 @@ label shared_flourish:
     show flourish_mark at truecenter
     "A shimmering flourish briefly lights the air."
     hide flourish_mark
+    return
+
+
+# A scene can change while the statements that make it stay the same: one show line run with other arguments, a
+# screen whose text follows a variable, a caption the config hides whether a statement or Python code shows it.
+label changes_scene:
+    $ torture_step = 0
+    while torture_step < 3:
+        show box_marker at Position(xpos=120 + torture_step * 260, ypos=330)
+        "The marker hops to its next spot."
+        $ torture_step += 1
+    hide box_marker
+    $ torture_tally = 1
+    show screen tally_screen
+    "The tally on the wall reads one."
+    $ torture_tally = 2
+    "The tally on the wall now reads two."
+    "Nothing changes; the tally stays at two."
+    hide screen tally_screen
+    "The wall is bare again."
+    show caption_card
+    "A caption hangs here, but the config hides it."
+    hide caption_card
+    $ renpy.show("caption_card")
+    "The same caption, shown from Python this time."
+    $ renpy.hide("caption_card")
     return

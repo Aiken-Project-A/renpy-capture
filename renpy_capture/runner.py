@@ -15,7 +15,7 @@ import traceback
 from . import sdk as sdkmod
 from .analysis import report
 from .game import MODS, engine_hint, engine_version, game_dir
-from .util import near, plural, read_bytes, read_json, read_jsonl, read_text
+from .util import near, plural, read_bytes, read_done, read_json, read_jsonl, read_text
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CAPTURE_RPY = os.path.join(HERE, 'capture.rpy')
@@ -390,7 +390,7 @@ class Progress:
         for p in logs + [p for p in list(self.pos) if p not in logs]:
             self._scan(p)
         dp = os.path.join(self.out, 'done.txt')
-        done = set(read_text(dp).split()) if os.path.exists(dp) else set()
+        done = read_done(dp)
         lines = sum(self.jobs.get(main, {}).values())
         lines += sum(n for p, c in self.jobs.items() if p != main for j, n in c.items() if j not in done)
         now = [j for p, j in self.cur.items() if j and j not in done]
@@ -434,6 +434,7 @@ def _engine_env(info, rundir, cfg_path, out, disp, genv, timewarp, fast, text, l
            'RENPY_CAPTURE_FAST': '1' if fast else '0', 'RENPY_CAPTURE_TEXT': '1' if text else '0',
            'RENPY_SKIP_MAIN_MENU': '1', 'RENPY_SKIP_SPLASHSCREEN': '1',
            'RENPY_GL_VSYNC': '0',      # Ren'Py only slows itself down with vsync; a 60 Hz screen does not matter here
+           'PYTHONHASHSEED': '0',      # the order of sets (image attributes, a game's own sets) is the same every run
            'RENPY_CAPTURE_CONFIG': os.path.abspath(cfg_path), 'RENPY_CAPTURE_OUT': os.path.abspath(out),
            'PATH': os.path.join(rundir, 'bin') + os.pathsep + os.environ.get('PATH', '/usr/bin:/bin'),
            'BROWSER': 'true'}
@@ -549,7 +550,7 @@ def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, 
         with open(done, 'a', encoding='utf-8') as f:
             f.write(hung + '\n')
         print(f'job {hung} hung, going on with the next one')
-        finished = set(read_text(done).split())
+        finished = read_done(done)
         if all(i in finished for i in ids):
             break
     tb = os.path.join(rundir, 'traceback.txt')
@@ -607,7 +608,7 @@ def prun(rundir, cfg_path, out, workers=4, timewarp=4.0, batch=8, display=None, 
     cfg = read_json(cfg_path)
     os.makedirs(os.path.join(out, 'frames'), exist_ok=True)
     dpath = os.path.join(out, 'done.txt')
-    done = set(read_text(dpath).split()) if os.path.exists(dpath) else set()
+    done = read_done(dpath)
     queue = [j for j in cfg['jobs'] if j['id'] not in done]
     info = _info(rundir)
     if not info.get('sdk'):                         # once, before the workers: together they would all download it

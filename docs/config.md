@@ -38,14 +38,14 @@ expressions and match anywhere in the string (`re.search`) unless stated otherwi
 
 | key | default | meaning |
 |---|---|---|
-| `ui` | none | Screens whose names match are interface: they are not drawn and get no events. Everything else on the `screens` layer counts as part of the scene. `.*` treats every screen as interface. The say, choice, quick menu, notify and skip-indicator screens are always replaced by invisible ones (with `text`, the game's own dialogue window, speech bubbles, NVL page and menus are drawn). |
+| `ui` | none | Screens whose names match are interface: they are not drawn and get no events. Everything else on the `screens` layer counts as part of the scene. `.*` treats every screen as interface. The say, choice, NVL page (`nvl`, `nvl_choice`), quick menu, notify and skip-indicator screens are always replaced by invisible ones (with `text`, the game's own dialogue window, speech bubbles, NVL page and menus are drawn). |
 | `null_screens` | none | Screens replaced by empty ones (map screens whose logic fails without the state of earlier scenes). |
 | `skip` | `[]` | Regexes on image files: a frame showing a matching file is not written (the record gets `skip`). |
 | `drop` | none | A regex on image files that are drawn fully transparent. |
 | `null_images` | `[]` | Image names replaced by an empty image: fades, flashes, noise, vignettes over the scene. `"text"` makes `show text "…"` invisible. |
 | `still_transforms` | `[]` | Transforms of endless animation (shaking, pulsing) that are kept at rest: their instant first lines apply, the animation does not run. |
 | `neutral_matrices` | `[]` | Names of colour-matrix functions in the store (e.g. `InvertMatrix`) replaced by the identity. |
-| `hide_tags` | none | A regex on image tags that are never shown (captions over the scene); their text is logged as an effect of the line (`text:…`). |
+| `hide_tags` | none | A regex on image tags that are never shown (captions over the scene), whether a statement or Python code (`renpy.show`) shows them; their text is logged as an effect of the line (`text:…`). |
 | `fx_screens`, `fx_files` | none | Regexes on screens and image files to log as effects of the line (`fx`), to overlay them separately later. |
 | `camera` | none | The camera of the master layer at the start of every job: the name of a transform in the store, or a dict of `Transform` properties (e.g. `{"perspective": true}`), as the game sets it before its scenes. |
 | `prelude` | `[]` | Labels to call before the job's label: what the game does at start that is not a `default`. |
