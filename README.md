@@ -10,6 +10,9 @@
 ![Linux](https://img.shields.io/badge/platform-Linux-2b6cb0)
 ![Ren'Py 7.8 | 8.2 | 8.3](https://img.shields.io/badge/Ren%27Py-7.8%20%7C%208.2%20%7C%208.3-2b6cb0)
 
+**English** · [Русский](docs/readme/ru.md) · [Українська](docs/readme/uk.md) · [简体中文](docs/readme/zh-CN.md) ·
+[日本語](docs/readme/ja.md) · [한국어](docs/readme/ko.md) · [Español](docs/readme/es.md) · [Français](docs/readme/fr.md)
+
 <img src="docs/images/hero-original.jpg" width="49%" alt="Sylvie says “Hi there! How was class?” in the game's own dialogue window">
 <img src="docs/images/hero-translation.jpg" width="49%" alt="The same moment in the Russian translation: “Привет! Как тебе урок?”">
 
@@ -96,7 +99,7 @@ identical, byte for byte, to the run before.
 | | Playing through | Translation files and tools | renpy-capture |
 |---|:---:|:---:|:---:|
 | Each line in its scene | ✓ | — | ✓ |
-| Every branch, and proof that none was missed | by hand, route by route | all the text, reachable or not | ✓ |
+| Every branch, and proof that none was missed | by hand, route by route | every string, reachable or not | ✓ |
 | The translation beside the original | replay in each language | text only | ✓ frame beside frame, as the game draws it |
 | Search, a link to any line, one page to share | — | search | ✓ |
 | Editing the translation | — | ✓ | — |
