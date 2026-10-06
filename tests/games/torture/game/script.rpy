@@ -160,6 +160,11 @@ label customscreen_scene:
     hide screen banner_screen
     $ torture_note = renpy.open_file("torture_note.txt", encoding="utf-8").read().strip()
     "[torture_note]"
+    call screen dice_game                            # a mini-game: the config stubs it, a win; one job loses
+    if _return == "win":
+        "The dice roll your way."
+    else:
+        "The dice roll against you."
     "A signpost stands where the road forks."
 label signpost_fork:
     call screen signpost

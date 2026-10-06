@@ -62,3 +62,9 @@ screen signpost():
             add Solid("#665544", xsize=120, ysize=60)
         textbutton "Read the sign" action Notify("Both roads lead home.")
         textbutton "The locked gate" action [SensitiveIf(False), Return("gate")]
+
+# A mini-game a player would have to win: nothing to press, only a key. The capture cannot play it: the config stubs it
+# (stub_screens), with another value in the job that loses.
+screen dice_game():
+    text "Roll the dice!" xalign 0.5 yalign 0.5 size 48 color "#ffffff"
+    key "K_SPACE" action Return("win")
