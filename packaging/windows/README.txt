@@ -28,7 +28,7 @@ https://github.com/Aiken-Project-A/renpy-capture , and it is built there by GitH
 from that source.
 
 The first capture also downloads the Ren'Py engine of your game's version from
-renpy.org (about 150 MB, once): the program needs the internet then, and never
+renpy.org (150 to 165 MB, once): the program needs the internet then, and never
 again for that version.
 
 
