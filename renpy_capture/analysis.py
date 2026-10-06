@@ -53,7 +53,7 @@ def report(out, brief=False):
         elif r['ev'] == 'error':                    # the tail of a Ren'Py traceback is platform, version and date:
             j['errors'] += 1                        # take the line of the error itself
             tb = r['error'].strip().splitlines()
-            msg = next((x for x in reversed(tb) if re.match(r'[\w.]+(Error|Exception|Exit)\b', x)), tb[-1])
+            msg = next((x for x in reversed(tb) if re.match(r'[\w.]*(Error|Exception|Exit)\b', x)), tb[-1])
             j['error'] = ('ignored: ' if r.get('ignored') else '') + msg[:200]
         elif r['ev'] == 'end':
             j['end'] = f"{r['why']} {r.get('seconds')} s"
