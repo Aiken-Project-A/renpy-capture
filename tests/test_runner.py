@@ -277,6 +277,7 @@ class LaunchTest(unittest.TestCase):
         self.assertEqual(env['RENPY_CAPTURE_CONFIG'], os.path.abspath('cfg.json'))
         self.assertEqual(env['RENPY_CAPTURE_OUT'], os.path.abspath('out'))
         self.assertEqual(env['HOME'], os.path.join(self.rundir, 'home'))
+        self.assertEqual(env['RENPY_CAPTURE_BASE'], self.game)     # the game's folder, not the launch folder
         self.assertTrue(env['PATH'].startswith(os.path.join(self.rundir, 'bin') + os.pathsep))
         self.assertEqual(env['VENDOR'], 'mesa')                     # the GPU vendor's
         if not runner.WINDOWS:
