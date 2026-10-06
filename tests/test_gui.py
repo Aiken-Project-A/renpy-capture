@@ -530,6 +530,29 @@ class RunTest(TempTest):
         self.assertEqual(len([x for x in got if x[0] == 'text']), 20000)
         self.assertEqual(run.returncode, 0)
 
+    def test_the_pipes_are_closed_with_the_run(self):
+        run = self.start('import sys; print("said", file=sys.stderr)')
+        wait_for(run)
+        run.close()
+        self.assertTrue(run.proc.stdout.closed and run.proc.stderr.closed)
+
+    def test_a_pipe_that_a_grandchild_keeps_open_is_not_waited_for_for_long(self):
+        run = self.start('import subprocess, sys\n'
+                         'child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])\n'    # outlives it
+                         'print(child.pid, file=sys.stderr, flush=True)\n')
+        started = time.monotonic()
+        got = wait_for(run)                                                     # a few seconds of grace, not a minute
+        self.addCleanup(self.end, int([x[1] for x in got if x[0] == 'text'][0]))
+        run.close()                                                             # and closing does not wait for it either
+        self.assertLess(time.monotonic() - started, 9)
+
+    @staticmethod
+    def end(pid):
+        try:
+            os.kill(pid, getattr(signal, 'SIGKILL', signal.SIGTERM))
+        except OSError:
+            pass
+
     def test_a_program_that_cannot_start_is_an_error_not_a_crash(self):
         run = Run([os.path.join(self.tmp, 'no such program')], os.path.join(self.tmp, 'run.log'))
         with self.assertRaises(OSError):
