@@ -359,6 +359,42 @@ class WindowTest(unittest.TestCase):
             self.assertGreater(a.log.winfo_height(), 20)                          # the log is what gives room
         self.assertGreaterEqual(heights[600], heights[1000])                      # a narrow window wraps its help more
 
+    def test_a_script_can_have_the_window_capture_and_close_with_an_exit_code(self):
+        """RENPY_CAPTURE_GUI_AUTORUN: how the build is tried where nobody can press Capture."""
+        self.choose()
+        a = self.app
+        a.autorun(delay=10)
+        settle(self.root, 0.3)
+        run = FakeRun.made[-1]
+        self.assertEqual(self.ctl.phase, 'running')
+        run.say(event('done', lines=1, jobs=1, pictures=1, complete=True, errors=[], missed=0, warnings=[]), code=0)
+        for _ in range(20):
+            with contextlib.suppress(tk.TclError):
+                a.tick()
+                settle(self.root, 0.1)
+        self.assertEqual(a.exit_code, 0)
+        self.assertTrue(run.closed)
+        with self.assertRaises(tk.TclError):                                    # it closed by itself
+            self.root.title()
+
+    def test_a_script_that_cannot_capture_leaves_with_another_code(self):
+        a = self.app                                                            # no game chosen
+        a.autorun(delay=10)
+        settle(self.root, 0.6)
+        self.assertEqual((a.exit_code, FakeRun.made), (2, []))
+
+    def test_a_capture_that_fails_leaves_with_a_failing_code(self):
+        self.choose()
+        a = self.app
+        a.autorun(delay=10)
+        settle(self.root, 0.3)
+        FakeRun.made[-1].say(event('error', message='no'), code=1)
+        for _ in range(20):
+            with contextlib.suppress(tk.TclError):
+                a.tick()
+                settle(self.root, 0.1)
+        self.assertEqual(a.exit_code, 1)
+
     def test_a_mistake_inside_the_window_is_written_down_and_told_once(self):
         try:
             raise ValueError('boom')

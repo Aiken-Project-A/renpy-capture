@@ -28,4 +28,6 @@ def main():
         from . import strings
         _say(strings.NO_TK)
         sys.exit(1)
-    app.run()
+    code = app.run()
+    if code:
+        sys.exit(code)
