@@ -4,11 +4,11 @@
 
 ### A window, and a Windows build that needs nothing installed
 - `renpy-capture gui` (or `renpy-capture-gui`, which opens no console on Windows) opens a window that does what
-  `capture`
-  does, for people who never open a terminal: the folder of the game (a folder that is not a game is said so in plain
-  words), a work folder named after the game in Documents, the translation to capture (the folders of `game/tl`, the
-  original first), "show the text box", and one big Capture button. A game that does not tell its Ren'Py version is
-  offered the versions that can be downloaded instead of failing. Tkinter only: no new dependency.
+  `capture` does, for people who never open a terminal: the folder of the game (a folder that is not a game is said so
+  in plain words), a work folder named after the game in Documents, the translation to capture (the folders of
+  `game/tl`, the original first), "show the text box", and one big Capture button. A game that does not tell its
+  Ren'Py version is offered the versions that can be downloaded instead of failing. Tkinter only: no new
+  dependency.
 - While it runs the window says in words what the command line shows, every second: the engine being downloaded the
   first time (with its size), the branches done, the lines captured, the branch under way. **Cancel** stops the capture
   and everything it started (a Job Object of the window on Windows; SIGTERM, then SIGKILL, elsewhere). It ends with what
@@ -37,8 +37,7 @@
 
 ### Fixed
 - An engine that never wrote a line (it or the screen did not start) ended a capture with a traceback about a missing
-  log;
-  it now ends with a sentence that points to what the engine and the screen said.
+  log; it now ends with a sentence that points to what the engine and the screen said.
 
 ### Windows
 - renpy-capture runs on Windows 10 and 11 with Python 3.9 or newer (`pipx install renpy-capture`), proven on every
