@@ -176,9 +176,27 @@ class StopTest(unittest.TestCase):
         self.assertEqual(seen, [before])
 
 
+class WindowTest(unittest.TestCase):
+    def test_the_window_command_opens_the_window(self):
+        with mock.patch('renpy_capture.gui.main') as window:
+            cli.main(['gui'])
+        window.assert_called_once_with()
+
+    def test_the_window_is_a_gui_script_of_the_package(self):
+        """pip makes a launcher of it that opens no console on Windows; the package must hold the code it names."""
+        import importlib
+        import re
+        with open(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'pyproject.toml'), encoding='utf-8') as f:
+            toml = f.read()
+        gui_scripts = toml.split('[project.gui-scripts]')[1].split('[')[0]
+        self.assertEqual(re.findall(r'^(\S+) = "(\S+)"', gui_scripts, re.M), [('renpy-capture-gui', 'renpy_capture.gui:main')])
+        self.assertTrue(callable(importlib.import_module('renpy_capture.gui').main))
+        self.assertIn('"renpy_capture.gui"', toml.split('packages = ')[1].split('\n')[0])
+
+
 class HelpTest(unittest.TestCase):
     def test_every_command_has_help(self):
-        commands = ('capture', 'init', 'sdk', 'setup', 'run', 'prun', 'explore', 'report', 'gaps', 'compare',
+        commands = ('capture', 'gui', 'init', 'sdk', 'setup', 'run', 'prun', 'explore', 'report', 'gaps', 'compare',
                     'forget', 'export')
         for cmd in commands:
             buf = io.StringIO()

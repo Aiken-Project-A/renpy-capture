@@ -12,6 +12,8 @@ The usual way, one command, everything in one work folder:
   renpy-capture capture ~/Games/MyGame work/      then open work/export/index.html
   run it again to go on after an interruption or after editing work/config.json
 
+No command line? `renpy-capture gui` opens a window that does the same.
+
 Step by step (what capture does): init, setup, explore, gaps, export.
 Checking a capture: report, gaps, compare.  Finer work: run, prun, forget, sdk.
 `renpy-capture <command> --help` describes a command."""
@@ -71,6 +73,9 @@ def main(argv=None):
     p.add_argument('--rounds', type=int, default=10, help='rounds of exploring new branches (default 10)')
     p.add_argument('--limit', type=int, default=600, help='at most this many jobs in the config (default 600)')
     engine_opts(p)
+
+    sub.add_parser('gui', help='open a window that does what `capture` does: pick the game, press Capture; no command '
+                               'line needed')
 
     p = sub.add_parser('init', help='write a starter config for a game')
     p.add_argument('game', help=GAME)
@@ -181,7 +186,10 @@ def _stop_on_sigterm():
 
 
 def dispatch(a):
-    if a.cmd == 'capture':
+    if a.cmd == 'gui':
+        from .gui import main as window
+        window()
+    elif a.cmd == 'capture':
         from .workflow import capture
         capture(a.game, a.workdir, workers=a.workers, version=a.renpy_version, sdk_dir=a.sdk, exclude=a.exclude,
                 rounds=a.rounds, limit=a.limit, language=a.language, text=a.text, fast=a.fast, timewarp=a.timewarp,

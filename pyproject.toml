@@ -28,8 +28,11 @@ Issues = "https://github.com/Aiken-Project-A/renpy-capture/issues"
 [project.scripts]
 renpy-capture = "renpy_capture.cli:main"
 
+[project.gui-scripts]
+renpy-capture-gui = "renpy_capture.gui:main"
+
 [tool.setuptools]
-packages = ["renpy_capture"]
+packages = ["renpy_capture", "renpy_capture.gui"]
 
 [tool.setuptools.package-data]
 renpy_capture = ["capture.rpy"]
