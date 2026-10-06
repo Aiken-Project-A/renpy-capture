@@ -9,7 +9,7 @@ import unittest
 from unittest import mock
 
 from renpy_capture import runner
-from renpy_capture.game import Game, engine_hint, engine_version, game_dir
+from renpy_capture.game import Game, NoGame, SeveralGames, engine_hint, engine_version, game_dir
 
 from .rpatool import write_rpa
 
@@ -45,6 +45,22 @@ class GameTest(unittest.TestCase):
     def test_game_dir_is_found_below(self):
         self.assertEqual(game_dir(self.tmp.name), os.path.join(self.root, 'game'))
         self.assertEqual(game_dir(os.path.join(self.root, 'game')), os.path.join(self.root, 'game'))
+
+    def test_a_folder_without_a_game_and_a_folder_with_several(self):
+        """Two kinds of ValueError, so that a program (the window) can tell them without reading the message."""
+        empty = os.path.join(self.tmp.name, 'Empty')
+        os.makedirs(empty)
+        with self.assertRaises(NoGame):
+            game_dir(empty)
+        many = os.path.join(self.tmp.name, 'Many')
+        for name in ('One', 'Two'):
+            os.makedirs(os.path.join(many, name, 'game'))
+            open(os.path.join(many, name, 'game', 'script.rpy'), 'w').close()
+        with self.assertRaises(SeveralGames) as cm:
+            game_dir(many)
+        self.assertEqual(sorted(cm.exception.found), [os.path.join(many, 'One'), os.path.join(many, 'Two')])
+        self.assertIsInstance(cm.exception, ValueError)
+        self.assertIn('several', str(cm.exception))
 
     def test_engine_version(self):
         self.assertEqual(engine_version(self.root), '8.2.3')
