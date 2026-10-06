@@ -148,6 +148,16 @@ class ReportTest(unittest.TestCase):
         self.assertIn("error: NameError: name 'x' is not defined", text)
         self.assertNotIn('Windows', text)
 
+    def test_a_bare_exception_is_the_error_line_too(self):
+        """Ren'Py raises plain Exception for a missing file or font: that line, not the date at the end."""
+        trace = ('  File "renpy/text/font.py", line 673, in load_face\n    raise Exception("Could not find font")\n'
+                 "Exception: Could not find font 'Roboto-Light.ttf'.\n\nLinux-6.1 x86_64\nRen'Py 8.3.2\n"
+                 'Tue Oct  6 09:35:40 2026\n')
+        text = self.report([shot(1, 3), {'ev': 'error', 'job': 'j', 'error': trace},
+                            {'ev': 'end', 'job': 'j', 'why': 'error', 'seconds': 1.0}])
+        self.assertIn("error: Exception: Could not find font 'Roboto-Light.ttf'.", text)
+        self.assertNotIn('2026', text)
+
     def test_an_ignored_error_is_marked_and_not_counted(self):
         recs = [shot(1, 3), {'ev': 'error', 'job': 'j', 'error': 'ValueError: x', 'ignored': True},
                 {'ev': 'end', 'job': 'j', 'why': 'end', 'seconds': 1.0}]
