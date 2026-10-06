@@ -18,9 +18,9 @@ GAME = "the game: its folder (the one with game/ inside) or game/ itself"
 CONFIG = 'the config file (JSON): the jobs and how to capture them; `init` writes a starter one'
 RUNDIR = 'the launch folder made by `setup`: links to the game plus the capture script'
 DISPLAY_HELP = ('where the engine draws. Linux: kwin (a virtual KDE compositor, GPU), xvfb (a virtual X server, '
-                'software GL) or window (your desktop); default: the first one available. Windows: window (your '
-                'desktop, the default), offscreen (your desktop, the window beyond the edge of the screen) or '
-                'desktop (a desktop of its own, never on your screen)')
+                'software GL) or window (your desktop); default: the first one available. Windows: desktop (a '
+                'desktop of its own, never on your screen; the default), offscreen (your desktop, the window beyond '
+                'the edge of the screen) or window (your desktop)')
 OUT = 'the capture folder: every picture (frames/) and the log of every line (log.jsonl)'
 
 

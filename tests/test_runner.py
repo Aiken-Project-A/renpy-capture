@@ -384,7 +384,7 @@ class WindowsLaunchTest(LaunchTest):
             runner.sdkmod.engine(self.tmp.name)
 
     def test_the_displays_of_windows(self):
-        self.assertEqual(runner.default_display(), 'window')
+        self.assertEqual(runner.default_display(), 'desktop')
         for name, cls in (('window', runner.WinWindow), ('offscreen', runner.WinOffscreen),
                           ('desktop', runner.WinDesktop)):
             self.assertIsInstance(runner.make_display(name, self.rundir, {}, (640, 480)), cls)
