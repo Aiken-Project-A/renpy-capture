@@ -227,6 +227,5 @@ RENPY_CAPTURE_IT=1 python -m unittest tests.test_torture         # end to end on
 
 On every pull request GitHub Actions runs the unit tests on Python 3.9 to 3.14 and on Windows, and the end-to-end tests
 (The Question and the Torture Test) on Ren'Py 8.3.2 and 7.8.7 under Xvfb on Linux and on windows-latest. The Windows
-job compares its capture of The
-Question with the one made on Linux, line by line (`RENPY_CAPTURE_IT_REFERENCE`), and its three displays with each
-other, to the byte.
+job compares its capture of The Question with the one made on Linux, line by line (`RENPY_CAPTURE_IT_REFERENCE`), and
+its three displays with each other, to the byte.
