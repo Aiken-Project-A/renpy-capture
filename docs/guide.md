@@ -4,6 +4,7 @@ Everything the [front page](../README.md) leaves out: how to install, what each 
 how to guide a game with more machinery, and what to do when something is off.
 
 - [Install](#install)
+- [On Windows](#on-windows)
 - [Capture a game](#capture-a-game)
 - [A translation](#a-translation)
 - [Step by step](#step-by-step)
@@ -17,8 +18,8 @@ how to guide a game with more machinery, and what to do when something is off.
 
 ## Install
 
-You need Linux, Python 3.9 or newer, and a screen for the engine. The first one available is used; `--display` picks
-one:
+You need Linux or Windows 10/11 (see [On Windows](#on-windows)), Python 3.9 or newer, and on Linux a screen for the
+engine. The first one available is used; `--display` picks one:
 
 - `kwin` — a virtual KDE Plasma 6 compositor (`kwin_wayland --virtual`) with its own D-Bus session: nothing appears
   on your desktop, the engine renders on the GPU;
@@ -31,11 +32,50 @@ pipx install renpy-capture
 # the latest from GitHub, before its release: pipx install git+https://github.com/Aiken-Project-A/renpy-capture
 ```
 
-SDKs are kept in `~/.cache/renpy-capture/sdk` (`RENPY_CAPTURE_SDK` puts them elsewhere).
+SDKs are kept in `~/.cache/renpy-capture/sdk`, on Windows in `%LOCALAPPDATA%\renpy-capture\sdk`
+(`RENPY_CAPTURE_SDK` puts them elsewhere).
 
 For games that ship only compiled scripts (`.rpyc`), the check for unreached lines and the scene names of the page
 read them with [unrpyc](https://github.com/CensoredUsername/unrpyc) (MIT): renpy-capture downloads a pinned release
 once from GitHub and checks its files, or uses your own copy when `RENPY_CAPTURE_UNRPYC` points to it.
+
+## On Windows
+
+Windows 10 or 11, Python 3.9 or newer from [python.org](https://www.python.org/downloads/windows/) (or the Microsoft
+Store), then in PowerShell or the Command Prompt:
+
+```powershell
+py -m pip install --user pipx
+py -m pipx ensurepath          # then open a new terminal
+pipx install renpy-capture
+renpy-capture capture "D:\Games\SomeGame" work
+start work\export\index.html
+```
+
+Everything else is the same as on Linux: the commands, the config, the files a capture writes. What differs:
+
+- **What you see.** By default (`--display desktop`) the engine draws on a desktop of its own: nothing appears on
+  your screen and you can go on working, the taskbar shows nothing either. `--display offscreen` keeps the window on
+  your desktop but beyond the edge of the screen (it shows for a moment each time the engine starts, and in the
+  taskbar). `--display window` leaves it in the middle of your screen: leave it alone. On the tests' machine the three
+  give the same frames, to the byte.
+- **The size of the pictures.** Ren'Py makes its window no larger than the screen it opens on, less a margin of
+  about 100 pixels, and scales it with Windows' display scaling. A game of 1920x1080 on a 1920x1080 screen is captured
+  a little smaller than its own size; at 125% scaling, larger. The pictures are the same scene either way, and
+  `compare --states-only` compares captures of different sizes.
+- **The launch folder** is made of hard links to the game's files (symbolic links need an administrator or Developer
+  Mode on Windows): they take no room, and the game is never written to. A hard link needs the same drive and NTFS:
+  with the game on another drive, or on a USB stick, the files are copied once, which takes room and time; renpy-capture
+  says so. Put the work folder on the drive of the game.
+- **The graphics.** The engine picks its renderer as it does for a player: OpenGL when the driver offers it, else
+  ANGLE (OpenGL ES over Direct3D 11). `--gpu` does nothing on Windows: Settings → System → Display → Graphics chooses
+  the GPU of `renpy.exe` in the SDK. Pictures made with another renderer than on Linux may differ in pixels, never in
+  what is on screen: `compare --states-only`.
+- **Stopping.** Ctrl+C, closing the terminal or ending renpy-capture in the Task Manager stops the engine too, and
+  anything it started (a Job Object).
+- **Saves and settings** of the engine stay in the launch folder (`run\home`), as on Linux: your own saves of the game
+  are not touched, and an error opens no editor.
+- A game with Live2D: its `lib\py3-windows-x86_64\Live2DCubismCore.dll` is used (the SDK has none).
 
 ## Capture a game
 
@@ -159,7 +199,8 @@ chosen by flags set much earlier can be captured with exact jobs (`gaps` tells w
 
 ## Limits
 
-- Linux only for now.
+- Linux and Windows 10/11; not macOS yet.
+- On Windows the pictures are no larger than the screen (see [On Windows](#on-windows)).
 - The official SDK must be able to run the game: games that ship a modified engine may not start.
 - `gaps` and `export` read `.rpy` sources, `.rpyc` through unrpyc, and archives in the formats Ren'Py itself writes
   (RPA-2.0 and RPA-3.0). The index of an archive is read without running code from it; custom and obfuscated
@@ -173,6 +214,7 @@ chosen by flags set much earlier can be captured with exact jobs (`gaps` tells w
 | **Graphics** | NVIDIA GeForce RTX 2060 (driver 615.71) · AMD Radeon Vega (Mesa 26.2, radeonsi) · software rendering (Xvfb 21.1, Mesa llvmpipe) |
 | **Ren'Py** | 7.8.7, 8.2.3, 8.3.2 |
 | **The sample game** | The Question: 3 jobs, 128 lines in seconds. The same pictures, byte for byte, on Ren'Py 7.8 and 8.3; the same scene at every line on all three graphics stacks. |
+| **Windows** | GitHub Actions windows-latest: Windows Server 2025, Python 3.12, no GPU (Microsoft Hyper-V Video): the engine falls back from OpenGL to ANGLE on the Microsoft Basic Render Driver (Direct3D 11 in software). The Question on Ren'Py 8.3.2 and 7.8.7: the same scene as on Linux at every one of its 128 lines, and the same frames, byte for byte, on the three displays and from run to run, in about the time the jobs take on Linux (16 s against 17 s for 8.3.2). The Torture Test passes too. Not yet on a Windows machine with a GPU. |
 | **A large commercial game** | 44 jobs, 21,945 lines in about 8 minutes on four engines (RTX 2060). The same pictures, byte for byte, as a reference capture, and the same 591 event pictures. |
 
 ## Tests
@@ -182,3 +224,9 @@ python -m unittest discover -s tests -t .                        # unit tests: n
 RENPY_CAPTURE_IT=1 python -m unittest tests.test_the_question    # end to end on The Question (downloads the SDK once)
 RENPY_CAPTURE_IT=1 python -m unittest tests.test_torture         # end to end on the Torture Test (tests/games)
 ```
+
+On every pull request GitHub Actions runs the unit tests on Python 3.9 to 3.14 and on Windows, and the end-to-end tests
+(The Question and the Torture Test) on Ren'Py 8.3.2 and 7.8.7 under Xvfb on Linux and on windows-latest. The Windows
+job compares its capture of The
+Question with the one made on Linux, line by line (`RENPY_CAPTURE_IT_REFERENCE`), and its three displays with each
+other, to the byte.
