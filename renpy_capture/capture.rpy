@@ -98,7 +98,7 @@ init python:
                      stop_labels=None, trans=False, fx_screens=None, fx_files=None, hidden_text={}, dt=0.0,
                      vclock=0.0, cap_anim=False, cap_peak=False, vis_prev=None, hidden_ids=set(), persist0=None,
                      prof=None, raw_seen={}, fast=False, label_lines=None, text=False, dirty=False, own_file=None,
-                     last_renders=[])
+                     last_renders=[], calling=None)
 
     def _rc_rx(v):
         return _rc_re.compile(v) if v else None
@@ -301,6 +301,36 @@ init python:
         k = _rc_bisect.bisect_right(lines, ln or 0) - 1
         return rows[k] if k >= 0 else None
 
+    def _rc_leads_on(a):
+        """Whether a button's action takes the game somewhere: Return, Jump or Call, alone or in a list."""
+        if isinstance(a, (list, tuple)):
+            return any(_rc_leads_on(x) for x in a)
+        return isinstance(a, (store.Return, store.Jump, store.Call))
+
+    def _rc_screen_options(name):
+        """The options of a called screen (`call screen`): its sensitive buttons that lead on, in the order of the
+        screen, each with the words a screen reader would say for it (its text, or its `alt`: an imagemap's hotspot)."""
+        s = renpy.get_screen(name)
+        if s is None:
+            return []
+        found = []
+        try:
+            s.visit_all(found.append)
+        except Exception:
+            return []
+        rv = []
+        for b in found:
+            if not isinstance(b, renpy.display.behavior.Button) or not _rc_leads_on(b.action):
+                continue
+            try:
+                if not b.is_sensitive():
+                    continue
+                cap = " ".join(u"{}".format(b._tts_all()).split())
+            except Exception:
+                cap = ""
+            rv.append(_RcState(caption=cap or u"button {}".format(len(rv) + 1), action=b.action))
+        return rv
+
     def _rc_capture(iface, files=None):
         P = _rc_P
         ctx = renpy.game.context()
@@ -401,15 +431,20 @@ init python:
             P.last_key, P.last_frame, P.dirty = key, h, False
 
         # How to end the interaction.
-        value = True
+        value, act, items, called = True, None, None, None
         choice = renpy.get_screen("choice")
         if choice is None:                             # NVL mode: the menu is on the NVL page (nvl_choice, or nvl)
             choice = next((s for s in (renpy.get_screen("nvl_choice"), renpy.get_screen("nvl"))
                            if s is not None and s.scope.get("items")), None)
         if choice is not None:
             items = [i for i in choice.scope.get("items", []) if getattr(i, "action", None) is not None]
-            plan = P.job.get("choices", [])
             caps = [renpy.substitute(i.caption) for i in items]
+        elif P.calling is not None:                    # a called screen whose buttons lead on (a hub, a map): a menu
+            items = _rc_screen_options(P.calling) or None
+            if items is not None:
+                called, caps = P.calling, [i.caption for i in items]
+        if items is not None:
+            plan = P.job.get("choices", [])
             say = renpy.get_screen("say")              # the line shown with the menu (its caption, or the say before)
             ask = say.scope.get("what") if say is not None else None
             if P.wait is not None and P.wait_node is None and any(P.wait.search(c) for c in caps):
@@ -433,7 +468,11 @@ init python:
             if ask:
                 rec["menu"]["caption"] = ask
             P.menu_i += 1
-            value = items[k].action() if items else True
+            if called is not None:                     # its button is pressed once the record is out: a Jump or a
+                rec["menu"]["screen"] = called         # Call leaves from there
+                act = items[k].action
+            else:
+                value = items[k].action() if items else True
         elif renpy.get_screen("input") is not None:
             value = ""
         elif P.pause_delay is not None:
@@ -452,6 +491,10 @@ init python:
         if P.lines[key] > P.job.get("loop_limit", P.loop_limit):
             _rc_emit({"ev": "stop", "job": P.job["id"], "why": "loop", "file": key[0], "line": key[1]})
             raise renpy.game.EndReplay()
+        if act is not None:
+            value = renpy.display.behavior.run(act)
+            if value is None:
+                value = True
         raise renpy.display.core.EndInteraction(value)
 
     # The capture happens right after a frame has been drawn (Interface.draw_screen), once the scene has settled.
@@ -634,6 +677,19 @@ init python:
             _rc_P.pause_delay = None
 
     renpy.exports.pause = _rc_pause
+
+    # The screen a `call screen` waits on: its buttons that lead on are the options of a menu (_rc_screen_options).
+    _rc_orig_call_screen = renpy.exports.call_screen
+
+    def _rc_call_screen(_screen_name, *args, **kwargs):
+        P = _rc_P
+        old, P.calling = P.calling, _screen_name
+        try:
+            return _rc_orig_call_screen(_screen_name, *args, **kwargs)
+        finally:
+            P.calling = old
+
+    renpy.exports.call_screen = _rc_call_screen
 
     # Camera moves (the camera statement with an ATL block) jump to their final position: that is what the reader
     # sees once the move is over, and an unfinished move of the previous scene (the capture is faster than a player)

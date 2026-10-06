@@ -160,6 +160,16 @@ label customscreen_scene:
     hide screen banner_screen
     $ torture_note = renpy.open_file("torture_note.txt", encoding="utf-8").read().strip()
     "[torture_note]"
+    "A signpost stands where the road forks."
+    call screen signpost
+    if _return == "north":
+        "You take the north road, up into the hills."
+    else:
+        "You take the south road, down to the river."
+    return
+
+label signpost_cellar:
+    "You climb down into the cellar instead."
     return
 
 

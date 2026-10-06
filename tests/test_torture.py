@@ -7,7 +7,8 @@ that is part of the scene next to a HUD screen that is not, a shared procedure r
 scenes, renpy.random and a full restart; its own say and choice screens, drawn with text, and a click-to-continue
 indicator that blinks for ever; and a scene that changes while its statements stay the same (one show line run with
 other arguments, a screen whose text follows a variable, a caption the config hides however it is shown);
-a file found on a search path the game gives relative to its own folder.
+a file found on a search path the game gives relative to its own folder; a screen the script calls and waits on, whose
+buttons are the options of a menu.
 
 Opt-in (it downloads the SDK once and needs a display backend): RENPY_CAPTURE_IT=1 python -m unittest
 tests.test_torture. RENPY_CAPTURE_IT_VERSION picks the SDK (default 8.3.2), RENPY_CAPTURE_IT_DISPLAY and
@@ -207,6 +208,21 @@ class TortureTest(unittest.TestCase):
         (Its menu is answered all the same: test_nothing_left_uncaptured finds both pages after it.)"""
         first, second = self.shots_of(*NVL_LINES)
         self.assertEqual(first['frame'], second['frame'])
+
+    SIGNPOST = ('You take the north road, up into the hills.', 'You take the south road, down to the river.',
+                'You climb down into the cellar instead.')
+
+    def test_a_called_screen_is_a_menu(self):
+        """`call screen signpost`: its buttons that lead on (Return, and Jump on a button known by its alt) are the
+        options, every one is taken; a button that leads nowhere and one that cannot be pressed are not options."""
+        shots = [r for r in self.records() if r['ev'] == 'shot']
+        menus = [r['menu'] for r in shots if (r.get('menu') or {}).get('screen') == 'signpost']
+        self.assertTrue(menus)
+        self.assertEqual({tuple(m['options']) for m in menus}, {('North road', 'South road', 'The cellar door')})
+        self.assertEqual({m['pick'] for m in menus}, {0, 1, 2})
+        whats = {r.get('what') for r in shots}
+        for line in self.SIGNPOST:
+            self.assertIn(line, whats)
 
     def test_a_search_path_beside_the_game(self):
         """The game puts notes/, a folder next to game/, on its search path: the engine runs on the launch folder and
