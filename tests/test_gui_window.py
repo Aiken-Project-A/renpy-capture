@@ -616,7 +616,11 @@ class WindowEndToEnd(unittest.TestCase):
                     box = (frame.left, frame.top, frame.right, frame.bottom)
             except (OSError, AttributeError):
                 pass
-        ImageGrab.grab(bbox=box).convert('RGB').save(path, optimize=True)
+        try:
+            picture = ImageGrab.grab(bbox=box)
+        except (OSError, ValueError):                               # a frame the screen cannot give: what is inside
+            picture = ImageGrab.grab(bbox=(x, y, x + w, y + h))
+        picture.convert('RGB').save(path, optimize=True)
 
     def test_cancel_stops_the_capture_and_what_it_started_and_capture_goes_on(self):
         self.app.capture.invoke()
