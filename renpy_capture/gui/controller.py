@@ -388,14 +388,15 @@ def clock_text(seconds):
 
 class Run:
     """One `renpy-capture capture` as a program of its own. Its events (the JSON lines of its standard output) and its
-    text (the standard error, which goes to the log file as well) come to ``poll``. ``cancel`` stops it and everything
+    text (the standard error, which goes to the log file as well) come to ``poll``; it runs in ``cwd`` (the work folder:
+    the paths it says are then relative to it). ``cancel`` stops it and everything
     it started: on Windows by the Job Object of the window (the engines are in the capture's own, which is inside it),
     elsewhere by SIGTERM, which the capture turns into a clean stop, and after a while by SIGKILL."""
 
     GRACE = 20                                              # seconds a capture has to stop on SIGTERM
 
-    def __init__(self, argv, log, env=None):
-        self.argv, self.log, self.env = argv, log, env
+    def __init__(self, argv, log, env=None, cwd=None):
+        self.argv, self.log, self.env, self.cwd = argv, log, env, cwd
         self.proc = self.job = None
         self.cancelled = False
         self.tail = collections.deque(maxlen=30)            # the last lines it said: what a failure is explained by
@@ -414,7 +415,7 @@ class Run:
         try:
             self.proc = subprocess.Popen(self.argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                          stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='replace',
-                                         bufsize=1, env=env, **extra)
+                                         bufsize=1, env=env, cwd=self.cwd, **extra)
         except OSError:
             self._file.close()
             raise
@@ -758,7 +759,7 @@ class Controller:
         argv = self.command + capture_arguments(self.info, workdir, self.language, self.text,
                                                 self.version if self.needs_version() else None)
         self.log = os.path.join(workdir, LOG)
-        run = self.spawn(argv, self.log)
+        run = self.spawn(argv, self.log, cwd=workdir)   # there: the paths the capture says are short ones
         try:
             run.start()
         except OSError as e:

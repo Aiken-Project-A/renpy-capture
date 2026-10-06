@@ -138,10 +138,10 @@ class ProgressJsonTest(unittest.TestCase):
 
     def test_only_the_commands_that_run_an_engine_have_the_option(self):
         for cmd in ('capture', 'explore', 'run', 'prun'):
-            with self.assertRaises(SystemExit) as cm, contextlib.redirect_stdout(io.StringIO()) as buf:
+            with self.assertRaises(SystemExit), contextlib.redirect_stdout(io.StringIO()) as buf:
                 cli.main([cmd, '--help'])
             self.assertIn('--progress-json', buf.getvalue(), cmd)
-        with self.assertRaises(SystemExit) as cm, contextlib.redirect_stdout(io.StringIO()) as buf:
+        with self.assertRaises(SystemExit), contextlib.redirect_stdout(io.StringIO()) as buf:
             cli.main(['report', '--help'])
         self.assertNotIn('--progress-json', buf.getvalue())
 
