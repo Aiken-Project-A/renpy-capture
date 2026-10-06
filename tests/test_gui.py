@@ -230,7 +230,7 @@ class CommandTest(TempTest):
         self.assertNotIn('--renpy-version', capture_arguments(game, 'work'))
 
     def test_a_path_with_spaces_and_quotes_stays_one_argument(self):
-        game = check_game(make_game(self.tmp, "Sylvie's Game  (v1.0)"))
+        game = check_game(make_game(self.tmp, "The Cat's Game  (v1.0)"))
         self.assertEqual(capture_arguments(game, 'my work')[1:3], [game.path, 'my work'])
 
     def test_not_frozen_it_is_this_python_running_the_package(self):
