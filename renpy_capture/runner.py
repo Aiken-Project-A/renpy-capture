@@ -428,8 +428,8 @@ class WinDesktop(WinWindow):
 
 
 def default_display():
-    if WINDOWS:
-        return 'window'
+    if WINDOWS:                                     # measured on windows-latest: the same frames, to the byte, as
+        return 'desktop'                            # window and offscreen, and nothing on the user's screen
     if shutil.which('kwin_wayland') and shutil.which('dbus-run-session'):
         return 'kwin'
     if shutil.which('Xvfb'):
