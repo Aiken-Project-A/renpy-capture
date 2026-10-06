@@ -13,6 +13,18 @@ SKIP_DIRS = ('cache/', 'saves/', 'tl/', '__pycache__/')
 MODS = re.compile(r'translator3000|0x52_urm', re.I)
 
 
+class NoGame(ValueError):
+    """The folder holds no Ren'Py game."""
+
+
+class SeveralGames(ValueError):
+    """The folder holds more than one Ren'Py game: ``found`` are their folders."""
+
+    def __init__(self, message, found):
+        super().__init__(message)
+        self.found = found
+
+
 def _has_scripts(d):
     try:
         return any(f.lower().endswith(('.rpa', '.rpy', '.rpyc')) for f in os.listdir(d))
@@ -22,7 +34,8 @@ def _has_scripts(d):
 
 def game_dir(path):
     """The game/ directory of the game at ``path``: the game folder itself, its game/ directory, or a folder up to
-    three levels above it (downloaded games often come wrapped in extra folders)."""
+    three levels above it (downloaded games often come wrapped in extra folders). Raises NoGame, or SeveralGames
+    (both are ValueErrors)."""
     path = os.path.abspath(path)
     if os.path.basename(path) == 'game' and _has_scripts(path):
         return path
@@ -39,8 +52,8 @@ def game_dir(path):
     if len(found) == 1:
         return os.path.join(found[0], 'game')
     if found:
-        raise ValueError(f"{path}: several Ren'Py games inside, point to one of: " + '; '.join(found))
-    raise ValueError(f"{path}: no Ren'Py game here (a folder whose game/ holds .rpy, .rpyc or .rpa files)")
+        raise SeveralGames(f"{path}: several Ren'Py games inside, point to one of: " + '; '.join(found), found)
+    raise NoGame(f"{path}: no Ren'Py game here (a folder whose game/ holds .rpy, .rpyc or .rpa files)")
 
 
 def _engine_in(base):
