@@ -55,5 +55,8 @@ def plural(n, word, many=None):
 
 def near(path):
     """A path as a person reads it: relative when it is under the current folder."""
-    rel = os.path.relpath(path)
+    try:
+        rel = os.path.relpath(path)
+    except ValueError:                              # Windows: on another drive than the current folder
+        return path
     return path if rel.startswith('..') else rel
