@@ -20,9 +20,28 @@
 - `capture.rpy` reaches the engine with LF line ends however git checked it out (with CRLF the engine stopped on
   "Indentation mismatch"), and a path on another drive is printed as it is instead of stopping `setup`.
 
+### New
+- A screen the script calls (`call screen`) whose buttons lead on (`Return`, `Jump` or `Call`) is answered and
+  explored like a menu: a hub of topics, a map, an imagemap. Its options are worded as a screen reader says the
+  buttons (their text, or `alt`); the record names the `screen`. Met again with nothing planned for it, the job ends
+  there (stop `hub`), and each of its options is a job of its own.
+- A job can give `stub_screens` of its own, over the config's: the loss of a mini-game in one job, the win in the
+  others.
+- Tested on Ren'Py 8.5.3, and on the Ren'Py Tutorial (an optional end-to-end test, run in CI on one version).
+
 ### Fixed
 - A game that ships `x_ren.py` with its compiled `x.rpyc`: `x.rpyc` was linked into the launch folder, and the
   engine, compiling `x_ren.py`, wrote it in place, through the link, into the game. It is no longer linked.
+- `stub_screens` did nothing with the starter config (`ui: ".*"`): the stub is then an interface screen, the scene
+  looked as it did, and the capture ended the call at once with `True` before the stub could return its value.
+- A folder a game adds to its search path relative to its own folder (the Tutorial's `../launcher/game/fonts`) is
+  found: it was looked for next to the launch folder.
+- An engine left running by a capture that was killed outright no longer writes into the next capture of the same
+  launch folder: every launch stops it first.
+- `report` names the error of a job that ends on a bare `Exception: …` (a missing file or font), not the date at the
+  end of the traceback.
+- `gaps` follows the game into a statement at the top level after a label's body (the Tutorial's `example` blocks):
+  the show before it was reported unreached.
 
 ## 0.2.1 — 2026-10-03
 
