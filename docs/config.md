@@ -23,7 +23,7 @@ expressions and match anywhere in the string (`re.search`) unless stated otherwi
 | `id` | A unique name. It also seeds the game's randomness, so a job always plays out the same. |
 | `label` | The label to play. |
 | `scope` | `{variable: value}` set in the store before the label, on top of the game's `default`s. |
-| `choices` | The option to take in the 1st, 2nd, … menu met (0 is the first option). Menus beyond the list take the option matching `prefer`, or the first one; a menu met again (a quiz after a wrong answer) takes the next option. |
+| `choices` | The option to take in the 1st, 2nd, … menu met (0 is the first option). A called screen whose buttons lead on (`call screen` with buttons that `Return`, `Jump` or `Call`: a hub of topics, a map, an imagemap) counts as a menu, its buttons as the options. Menus beyond the list take the option matching `prefer`, or the first one; a menu met again (a quiz after a wrong answer) takes the next option, while a called screen met again ends the job (a hub: its other options are jobs of their own). |
 | `allow` | Labels that do not end the job even when they match `stop_labels` or live in `stop_files`. |
 | `scene` | An image to show as the background before the label: for scenes that normally play over a hub or a map. |
 | `replay` | `true` for a label that is a gallery replay and ends itself with `renpy.end_replay()`. |
@@ -71,6 +71,7 @@ expressions and match anywhere in the string (`re.search`) unless stated otherwi
 |---|---|---|
 | `stop_files` | none | A regex on script files: entering a label defined in a matching file ends the job. |
 | `stop_labels` | none | A regex on label names: entering a matching label (a hub, a map) ends the job. |
+| (a hub) | | A called screen met again, with nothing left in the job's `choices` for it, ends the job (`report` says `hub`); `explore` makes its other options jobs of their own. |
 | `max_steps` | 3000 | Interactions per job. |
 | `loop_limit` | 40 | Captures of the same line from the same call site. `explore` retries a job stopped this way with `ui_timers`. |
 | `ignore_errors` | none | A regex on the text of script errors to step over, as a player pressing "Ignore" would (an author's typo). Other errors end the job. |
