@@ -21,11 +21,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CAPTURE_RPY = os.path.join(HERE, 'capture.rpy')
 RPY_NAME = 'zz_renpy_capture.rpy'
 RUN_INFO = 'renpy-capture.json'
+LINKS = '.links.json'
+NO_EDITOR = 'no-editor.edit.py'
+WINDOWS = os.name == 'nt'
 EGL = {'nvidia': '/usr/share/glvnd/egl_vendor.d/10_nvidia.json',
        'mesa': '/usr/share/glvnd/egl_vendor.d/50_mesa.json'}
 DRM_SYSFS = '/sys/class/drm'
 SCREEN = (1920, 1200)
-DISPLAYS = ('kwin', 'xvfb', 'window')
+DISPLAYS = ('kwin', 'xvfb', 'window', 'offscreen', 'desktop')
 STARTER = {'jobs': [{'id': 'start', 'label': 'start'}], 'ui': '.*', 'settle': 0.3, 'settle_max': 1.2,
            'max_steps': 3000, 'loop_limit': 40}
 
@@ -56,9 +59,14 @@ def setup(game, rundir, version=None, sdk_dir=None, exclude=None, quiet=False):
     os.makedirs(os.path.join(rundir, 'home'), exist_ok=True)
     stub = os.path.join(rundir, 'bin')              # a crashing engine opens traceback.txt with xdg-open: no editor
     os.makedirs(stub, exist_ok=True)                # windows pop up on the user's desktop
-    with open(os.path.join(stub, 'xdg-open'), 'w') as f:
-        f.write('#!/bin/sh\nexit 0\n')
-    os.chmod(os.path.join(stub, 'xdg-open'), 0o755)
+    if WINDOWS:                                     # (os.startfile there: an editor of Ren'Py's own that opens nothing)
+        with open(os.path.join(stub, NO_EDITOR), 'w') as f:
+            f.write('import renpy.editor\n\n\nclass Editor(renpy.editor.Editor):\n'
+                    '    def open(self, filename, line=None, **kwargs):\n        pass\n')
+    else:
+        with open(os.path.join(stub, 'xdg-open'), 'w') as f:
+            f.write('#!/bin/sh\nexit 0\n')
+        os.chmod(os.path.join(stub, 'xdg-open'), 0o755)
     info = {'game': os.path.abspath(game), 'version': version, 'sdk': sdk_dir and os.path.abspath(sdk_dir),
             'exclude': exclude}
     with open(os.path.join(rundir, RUN_INFO), 'w', encoding='utf-8') as f:
@@ -68,15 +76,83 @@ def setup(game, rundir, version=None, sdk_dir=None, exclude=None, quiet=False):
         print(f"launch folder: {near(rundir)} (Ren'Py {version or 'from ' + sdk_dir})")
 
 
-COMPILED = {'.rpyc': '.rpy', '.rpymc': '.rpym'}
+# a compiled script and the sources the engine compiles it from: x.rpyc from x.rpy or from x_ren.py
+COMPILED = {'.rpyc': ('.rpy', '_ren.py'), '.rpymc': ('.rpym',)}
 
 
-def _source(name):
-    """The source of a compiled script (x.rpy for x.rpyc), or None."""
-    for ext, src in COMPILED.items():
+def _sources(name):
+    """The possible sources of a compiled script (x.rpy and x_ren.py for x.rpyc), or ()."""
+    for ext, srcs in COMPILED.items():
         if name.endswith(ext):
-            return name[:-len(ext)] + src
-    return None
+            return tuple(name[:-len(ext)] + src for src in srcs)
+    return ()
+
+
+def _place(src, dst):
+    """A file of the game in the launch folder. A symbolic link; on Windows, where those need an administrator or
+    Developer Mode, a hard link (the same file under a second name, on the same volume), or else a copy. Returns how
+    it was placed: 'link' or 'copy'."""
+    if not WINDOWS:
+        os.symlink(src, dst)
+        return 'link'
+    try:
+        os.link(src, dst)
+        return 'link'
+    except OSError:                                 # another drive, FAT/exFAT, a network share
+        shutil.copy2(src, dst)
+        return 'copy'
+
+
+def _read_links(rundir):
+    """What link_game placed in game/ on Windows, {path inside game/: 'link' | 'copy'}: a hard link or a copy is a
+    plain file there, unlike a symbolic link, so the launch folder keeps a list of them."""
+    p = os.path.join(rundir, LINKS)
+    try:
+        return read_json(p) if os.path.exists(p) else {}
+    except ValueError:
+        return {}
+
+
+def _write_links(rundir, made):
+    tmp = os.path.join(rundir, LINKS + '.new')
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(made, f, ensure_ascii=False, indent=0, sort_keys=True)
+    os.replace(tmp, os.path.join(rundir, LINKS))
+
+
+def _same_copy(src, dst):
+    """A copy that is still the game's file: the same size and time of change (copy2 keeps the time, to the two
+    seconds of FAT)."""
+    try:
+        a, b = os.stat(src), os.stat(dst)
+    except OSError:
+        return False
+    return a.st_size == b.st_size and abs(a.st_mtime - b.st_mtime) <= 2
+
+
+def _plan(g, rx):
+    """What link_game puts in game/ of a launch folder: (the folders inside game/, [(a file of the game, its path
+    inside game/)]). Not the game's saves and cache, overlay mods, ``exclude`` (the regex ``rx``) or executables at
+    the top; not a compiled script whose source the game ships too (the engine compiles its own from the source)."""
+    dirs, files = [], []
+    for d, subs, names in os.walk(g, followlinks=WINDOWS):
+        rel = os.path.relpath(d, g)
+        if rel == '.':
+            subs[:] = [s for s in subs if s not in ('saves', 'cache') and not MODS.search(s)
+                       and not (rx and rx.search(s))]
+            names = [f for f in names if not f.lower().endswith('.exe') and not MODS.search(f)
+                     and not (rx and rx.search(f))]
+        if not WINDOWS:                             # a link to a folder in the game is linked as it is (on
+            names += [s for s in subs if os.path.islink(os.path.join(d, s))]       # Windows, walked into)
+            subs[:] = [s for s in subs if not os.path.islink(os.path.join(d, s))]
+        subs.sort()
+        if rel != '.':
+            dirs.append(rel)
+        have = set(names)
+        for f in sorted(names):
+            if not any(s in have for s in _sources(f)):
+                files.append((os.path.join(d, f), f if rel == '.' else os.path.join(rel, f)))
+    return dirs, files
 
 
 def link_game(info, rundir):
@@ -84,53 +160,73 @@ def link_game(info, rundir):
     (not its saves and cache, not overlay mods, not ``exclude``), and capture.rpy. Whatever the engine writes lands in
     the launch folder, never in the game: its saves/ and cache/, and the scripts it compiles — a compiled script whose
     source the game ships too is not linked, the engine compiles its own from the source and keeps it for later runs.
-    Called on every run, so the folder follows an updated game."""
+    Called on every run, so the folder follows an updated game. On Windows a copy that is still the game's file stays
+    (a game on another drive is copied once, not on every run)."""
     g = game_dir(info['game'])
     rg = os.path.join(rundir, 'game')
     rx = re.compile(info['exclude']) if info.get('exclude') else None
     os.makedirs(rg, exist_ok=True)
-    _unlink(g, rg, rg)
-    for d, subs, files in os.walk(g):
-        rel = os.path.relpath(d, g)
-        if rel == '.':
-            subs[:] = [s for s in subs if s not in ('saves', 'cache') and not MODS.search(s)
-                       and not (rx and rx.search(s))]
-            files = [f for f in files if not f.lower().endswith('.exe') and not MODS.search(f)
-                     and not (rx and rx.search(f))]
-        files += [s for s in subs if os.path.islink(os.path.join(d, s))]     # a link to a folder in the game is
-        subs[:] = sorted(s for s in subs if not os.path.islink(os.path.join(d, s)))   # linked as it is
-        dst = rg if rel == '.' else os.path.join(rg, rel)
-        os.makedirs(dst, exist_ok=True)
-        have = set(files)
-        for f in sorted(files):
-            if _source(f) in have or os.path.lexists(os.path.join(dst, f)):   # the engine's own compiled script
-                continue
-            os.symlink(os.path.join(d, f), os.path.join(dst, f))
+    dirs, files = _plan(g, rx)
+    made = _read_links(rundir) if WINDOWS else {}
+    keep = {rel for src, rel in files if made.get(rel) == 'copy' and _same_copy(src, os.path.join(rg, rel))}
+    _unlink(g, rg, rg, made, keep)
+    now = {rel: 'link' for _, rel in files}
+    now.update((rel, 'copy') for rel in keep)
+    if WINDOWS:                                     # listed before they are made: a cut-off run leaves none unknown
+        _write_links(rundir, now)
+    for rel in dirs:
+        os.makedirs(os.path.join(rg, rel), exist_ok=True)
+    copies = 0
+    for src, rel in files:
+        dst = os.path.join(rg, rel)
+        if os.path.lexists(dst):                    # the engine's own compiled script, or a copy kept
+            continue
+        now[rel] = _place(src, dst)
+        copies += now[rel] == 'copy'
+    if WINDOWS:
+        _write_links(rundir, now)
+        if copies:
+            print(f"{plural(copies, 'file')} of the game copied into the launch folder (a hard link needs the same "
+                  'drive and NTFS); a launch folder on the drive of the game takes no room', flush=True)
     for sub in ('saves', 'cache'):
         os.makedirs(os.path.join(rg, sub), exist_ok=True)
     shutil.copy(CAPTURE_RPY, os.path.join(rg, RPY_NAME))
 
 
-def _unlink(g, rg, d):
-    """Take down what link_game made in the folder ``d`` of a launch folder's game/ ``rg``: links and capture.rpy go,
-    folders go once empty. The engine's saves/ and cache/ stay, and so do the scripts it compiled while the game
-    still has their source. Anything else was put there by hand: refuse rather than delete it."""
+def _unlink(g, rg, d, made=None, keep=()):
+    """Take down what link_game made in the folder ``d`` of a launch folder's game/ ``rg``: links and capture.rpy go
+    (on Windows the hard links and copies of ``made``, except the copies in ``keep``), folders go once empty. The
+    engine's saves/ and cache/ stay, and so do the scripts it compiled while the game still has their source. Anything
+    else was put there by hand: refuse rather than delete it."""
+    made = made or {}
     rel = os.path.relpath(d, rg)
     for f in os.listdir(d):
         p = os.path.join(d, f)
+        r = f if rel == '.' else os.path.join(rel, f)
         if d == rg and f in ('saves', 'cache'):
             continue
-        if os.path.islink(p) or (d == rg and f.startswith(RPY_NAME[:-3])):     # capture.rpy and its .rpyc
-            os.remove(p)
+        if r in keep:
+            continue
+        if os.path.islink(p) or (d == rg and f.startswith(RPY_NAME[:-3])) or (r in made and os.path.isfile(p)):
+            os.remove(p)                            # (removing a hard link leaves the game's own name of the file)
         elif os.path.isdir(p):
-            _unlink(g, rg, p)
+            _unlink(g, rg, p, made, keep)
             if not os.listdir(p):
                 os.rmdir(p)
-        elif _source(f):
-            if not os.path.exists(os.path.join(g, rel, _source(f))):         # the game no longer has the source
-                os.remove(p)
+        elif _sources(f):
+            if not any(os.path.exists(os.path.join(g, rel, s)) for s in _sources(f)):   # the game no longer has
+                os.remove(p)                                                            # the source
+        elif WINDOWS and _same_file(p, os.path.join(g, r)):   # a hard link whose list was lost
+            os.remove(p)
         else:
             raise SystemExit(f'{p} is not a link made by renpy-capture; the launch folder was changed by hand')
+
+
+def _same_file(a, b):
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return False
 
 
 def init_config(game, path):
