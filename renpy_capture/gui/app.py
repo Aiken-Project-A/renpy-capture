@@ -181,7 +181,7 @@ class LogView(ttk.Frame):
 class App:
     def __init__(self, root, controller):
         self.root, self.ctl = root, controller
-        self.told_of_bug = False
+        self.told_of_bug, self.autorunning, self.exit_code = False, False, 0
         root.title(S.TITLE)
         try:                                                # its own icon in the title bar and the taskbar, not Tk's
             from .icon import PNG64
@@ -451,10 +451,40 @@ class App:
             self.ctl.pump()
             self.log.add(self.ctl.take_text())
             self.render_run()
+            if self.autorunning and self.ctl.phase == 'finished':
+                self.leave(0 if self.ctl.summary.kind == 'done' else 1)
         finally:
             if self.timer is not None:
                 self.root.after_cancel(self.timer)          # (a look that was not the timer's: only one is pending)
                 self.timer = self.root.after(POLL, self.tick)
+
+    def autorun(self, delay=1500):
+        """For a script (RENPY_CAPTURE_GUI_AUTORUN, a test of the build on a machine nobody sits at): press Capture on
+        its own a moment after the window is up, and close the window when the run ends, with an exit code that says
+        how it went. Nothing else about the window changes."""
+        self.autorunning = True
+        self.root.after(delay, self.autostart)
+
+    def autostart(self):
+        self.apply_game()
+        self.apply_work()
+        try:
+            self.ctl.start()
+        except Problem:
+            return self.leave(2)                            # nothing to capture: say so by the exit code
+        self.log.clear()
+        self.render_form()
+        self.render_run()
+
+    def leave(self, code):
+        self.exit_code, self.autorunning = code, False
+        self.ctl.close()
+        self.root.after(300, self.on_close_for_good)
+
+    def on_close_for_good(self):
+        self.ctl.settings.remember_window(self.root.winfo_width(), self.root.winfo_height())
+        self.bar.stop()
+        self.root.destroy()
 
     def on_destroy(self, event):
         """The window is going: its timers go with it (the bar's too), so that none runs into nothing."""
@@ -540,5 +570,8 @@ def run(settings_path=None):
         root = tk.Tk()
     except tk.TclError as e:                                # no screen to open a window on
         sys.exit(f'renpy-capture gui: cannot open a window: {e}')
-    App(root, Controller(Settings(settings_path)))
+    app = App(root, Controller(Settings(settings_path)))
+    if os.environ.get('RENPY_CAPTURE_GUI_AUTORUN'):
+        app.autorun()
     root.mainloop()
+    return app.exit_code
