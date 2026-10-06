@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — 2026-10-06
 
 ### A window, and a Windows build that needs nothing installed
 - `renpy-capture gui` (or `renpy-capture-gui`, which opens no console on Windows) opens a window that does what
@@ -26,23 +26,6 @@
   `renpy-capture.exe` the command (and the window, given no arguments). The build is not signed: the README says what
   SmartScreen shows the first time and how to go on.
 
-### New
-- `--progress-json` (`capture`, `explore`, `run`, `prun`): the progress as one JSON object per line on the standard
-  output (the steps, the engine being downloaded and unpacked with sizes, the branches and lines every second, the
-  summary at the end, the reason when it stops), the text for a person on the standard error. It is how the window
-  reads a capture, and how a script can ([the guide](docs/guide.md#the-progress-a-program-can-read)).
-- A capture told to stop with SIGTERM ends the way it does on Ctrl+C: the engine and the virtual screen are stopped
-  first.
-- `report` returns its warnings as data as well as printing them; `game_dir` can be told how many folders to look into.
-
-### Fixed
-- An engine that never wrote a line (it or the screen did not start) ended a capture with a traceback about a missing
-  log; it now ends with a sentence that points to what the engine and the screen said.
-- A capture that was killed outright in the middle of a job (Cancel in the window on Windows, a crash, a power cut) and
-  then run again had that job's first lines in its log twice, and so twice in the pages (`Done: 142 lines` for a game of
-  128). The engine takes every job that is not in `done.txt` from its first line, so what such a job had recorded is now
-  dropped from the log before the engine goes on, with the half of a record that the kill cut off.
-
 ### Windows
 - renpy-capture runs on Windows 10 and 11 with Python 3.9 or newer (`pipx install renpy-capture`), proven on every
   pull request by the tests on windows-latest: the unit tests, the Torture Test, and The Question on Ren'Py 8.3.2 and
@@ -62,6 +45,13 @@
   "Indentation mismatch"), and a path on another drive is printed as it is instead of stopping `setup`.
 
 ### New
+- `--progress-json` (`capture`, `explore`, `run`, `prun`): the progress as one JSON object per line on the standard
+  output (the steps, the engine being downloaded and unpacked with sizes, the branches and lines every second, the
+  summary at the end, the reason when it stops), the text for a person on the standard error. It is how the window
+  reads a capture, and how a script can ([the guide](docs/guide.md#the-progress-a-program-can-read)).
+- A capture told to stop with SIGTERM ends the way it does on Ctrl+C: the engine and the virtual screen are stopped
+  first.
+- `report` returns its warnings as data as well as printing them; `game_dir` can be told how many folders to look into.
 - A screen the script calls (`call screen`) whose buttons lead on (`Return`, `Jump` or `Call`) is answered and
   explored like a menu: a hub of topics, a map, an imagemap. Its options are worded as a screen reader says the
   buttons (their text, or `alt`); the record names the `screen`. Met again with nothing planned for it, the job ends
@@ -71,6 +61,12 @@
 - Tested on Ren'Py 8.5.3, and on the Ren'Py Tutorial (an optional end-to-end test, run in CI on one version).
 
 ### Fixed
+- An engine that never wrote a line (it or the screen did not start) ended a capture with a traceback about a missing
+  log; it now ends with a sentence that points to what the engine and the screen said.
+- A capture that was killed outright in the middle of a job (Cancel in the window on Windows, a crash, a power cut) and
+  then run again had that job's first lines in its log twice, and so twice in the pages (`Done: 142 lines` for a game of
+  128). The engine takes every job that is not in `done.txt` from its first line, so what such a job had recorded is now
+  dropped from the log before the engine goes on, with the half of a record that the kill cut off.
 - A game that ships `x_ren.py` with its compiled `x.rpyc`: `x.rpyc` was linked into the launch folder, and the
   engine, compiling `x_ren.py`, wrote it in place, through the link, into the game. It is no longer linked.
 - `stub_screens` did nothing with the starter config (`ui: ".*"`): the stub is then an interface screen, the scene

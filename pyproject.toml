@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "renpy-capture"
-version = "0.2.1"
+version = "0.3.0"
 description = "Every line of a Ren'Py visual novel, in every branch, with a screenshot taken by the game's own engine"
 readme = "README.md"
 license = "MIT"
