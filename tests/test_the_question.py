@@ -4,7 +4,9 @@ fewer frames for the same pictures, and that the export holds every line.
 
 Opt-in (it downloads the SDK once and needs a display backend): RENPY_CAPTURE_IT=1 python -m unittest
 tests.test_the_question. RENPY_CAPTURE_IT_VERSION picks the SDK (default 8.3.2), RENPY_CAPTURE_IT_DISPLAY and
-RENPY_CAPTURE_IT_GPU the display and GPU.
+RENPY_CAPTURE_IT_GPU the display and GPU. Across systems: RENPY_CAPTURE_IT_KEEP=DIR keeps the capture of the loose
+game in DIR, and RENPY_CAPTURE_IT_REFERENCE=DIR checks that this capture has the same scene at every line as the one
+kept there (on another system, with another renderer: the pixels may differ).
 """
 import contextlib
 import html
@@ -23,6 +25,8 @@ from .rpatool import pack_game_dir
 VERSION = os.environ.get('RENPY_CAPTURE_IT_VERSION', '8.3.2')
 DISPLAY = os.environ.get('RENPY_CAPTURE_IT_DISPLAY')
 GPU = os.environ.get('RENPY_CAPTURE_IT_GPU')
+KEEP = os.environ.get('RENPY_CAPTURE_IT_KEEP')
+REFERENCE = os.environ.get('RENPY_CAPTURE_IT_REFERENCE')
 
 
 @unittest.skipUnless(os.environ.get('RENPY_CAPTURE_IT'), 'set RENPY_CAPTURE_IT=1 to run the end-to-end test')
@@ -46,6 +50,9 @@ class TheQuestion(unittest.TestCase):
                 runner.setup(game, rundir, version=VERSION)
                 runner.explore(rundir, cfg, out, display=DISPLAY, gpu=GPU)
             cls.out[kind] = (game, cfg, rundir, out)
+        if KEEP:
+            shutil.rmtree(KEEP, ignore_errors=True)
+            shutil.copytree(cls.out['loose'][3], KEEP)
 
     @classmethod
     def tearDownClass(cls):
@@ -84,6 +91,16 @@ class TheQuestion(unittest.TestCase):
 
     def test_archive_changes_nothing(self):
         self.compare(self.out['loose'][3], self.out['packed'][3])
+
+    @unittest.skipUnless(REFERENCE, 'set RENPY_CAPTURE_IT_REFERENCE to a capture made on another system')
+    def test_the_same_scenes_as_on_another_system(self):
+        """The same jobs, the same lines in the same order, and at every line the same scene (images, screens, files,
+        camera, the option taken) as a capture made elsewhere: Linux and Windows run one game the same way."""
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ok = analysis.compare(REFERENCE, self.out['loose'][3], frames=False)
+        self.assertTrue(ok, buf.getvalue())
+        print('\n' + buf.getvalue().strip())
 
     def test_second_run_is_identical(self):
         game, cfg, rundir, out = self.out['loose']

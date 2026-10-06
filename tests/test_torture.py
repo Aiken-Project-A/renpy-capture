@@ -80,7 +80,7 @@ class TortureTest(unittest.TestCase):
         cls.tmp = tempfile.mkdtemp(prefix='renpy-capture-torture-')
         cls.game = os.path.join(cls.tmp, 'torture')
         shutil.copytree(GAME_SRC, cls.game)
-        subprocess.run([os.path.join(cls.sdk, 'renpy.sh'), cls.game, 'compile'], check=True,
+        subprocess.run(sdk.engine(cls.sdk) + [cls.game, 'compile'], check=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
         cls.cfg = os.path.join(cls.tmp, 'config.json')
         with open(cls.cfg, 'w', encoding='utf-8') as f:
