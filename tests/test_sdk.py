@@ -42,13 +42,17 @@ class SdkTest(unittest.TestCase):
         self.tar = fake_sdk('9.9.9', 'zip' if self.windows else 'tar.bz2')
         self.downloads = []
 
-        def urlretrieve(url, path):
+        def urlretrieve(url, path, reporthook=None):
             self.downloads.append(url)
             data = self.tar
+            if reporthook:
+                reporthook(0, 64, len(data))
             with open(path, 'wb') as f:             # slowly, the way a real download gives every other worker
                 for i in range(0, len(data), 64):   # time to arrive meanwhile
                     f.write(data[i:i + 64])
                     f.flush()
+                    if reporthook:
+                        reporthook(i // 64 + 1, 64, len(data))
                     time.sleep(0.002)
 
         def urlopen(url):                           # read when the download is done: the sum of what it holds
@@ -111,6 +115,37 @@ class SdkTest(unittest.TestCase):
         sdk.ensure('9.9.9')
         self.assertEqual(len(self.downloads), 1)
 
+    def test_a_program_that_reads_the_progress_is_told_every_step(self):
+        """The download with its size, the check, the unpack (file by file for a .zip), and that it is done."""
+        got = []
+        always = lambda seconds: (lambda force=False: True)             # no throttling: every update is told
+        with mock.patch.object(sdk.events, 'emit', lambda event, **kw: got.append((event, kw))), \
+                mock.patch.object(sdk.events, 'Every', always):
+            sdk.ensure('9.9.9')
+        self.assertEqual({event for event, _ in got}, {'fetch'})
+        steps = [kw['step'] for _, kw in got]
+        downloads = [kw for _, kw in got if kw['step'] == 'download']
+        self.assertEqual((downloads[0]['done'], downloads[0]['total']), (0, len(self.tar)))
+        self.assertEqual((downloads[-1]['done'], downloads[-1]['total']), (len(self.tar), len(self.tar)))
+        self.assertTrue(all(kw['what'] == 'sdk' and kw['version'] == '9.9.9' for _, kw in got))
+        unpacked = [(kw['done'], kw['total']) for _, kw in got if kw['step'] == 'unpack']
+        self.assertEqual(unpacked, [(0, None), (1, 2), (2, 2)] if self.windows else [(0, None)])
+        self.assertEqual(steps[len(downloads):len(downloads) + 2], ['verify', 'unpack'])
+        self.assertEqual(steps[-1], 'done')
+
+    def test_a_download_of_unknown_size_says_so(self):
+        got = []
+
+        def urlretrieve(url, path, reporthook=None):
+            reporthook(0, 8192, -1)
+            reporthook(5, 8192, -1)
+
+        with mock.patch.object(sdk.events, 'emit', lambda event, **kw: got.append(kw)), \
+                mock.patch.object(sdk.events, 'Every', lambda seconds: (lambda force=False: True)), \
+                mock.patch.object(sdk.urllib.request, 'urlretrieve', urlretrieve):
+            sdk._download('https://example.org/x', 'x', 'unrpyc', '1.0')
+        self.assertEqual([(kw['done'], kw['total']) for kw in got], [(0, None), (40960, None)])
+
 
 class WindowsSdkTest(SdkTest):
     """Windows takes the .zip: the same files as the .tar.bz2, unpacked without bzip2."""
@@ -168,7 +203,7 @@ class UnrpycTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.tar, self.downloads = fake_unrpyc('0.0.1'), []
 
-        def urlretrieve(url, path):
+        def urlretrieve(url, path, reporthook=None):
             self.downloads.append(url)
             with open(path, 'wb') as f:
                 f.write(self.tar)
