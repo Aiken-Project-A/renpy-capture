@@ -263,9 +263,13 @@ class WindowTest(unittest.TestCase):
         self.assertIn(S.STOPPED_GO_ON, said(self.app.notes))
 
     def test_escape_cancels_a_run_and_does_nothing_otherwise(self):
+        self.root.focus_force()                                 # a key goes to the window that has the keyboard
+        settle(self.root)
         self.root.event_generate('<Escape>')
         self.assertEqual(self.boxes.asked, [])
         self.run_something()
+        self.root.focus_force()
+        settle(self.root)
         self.root.event_generate('<Escape>')
         self.assertEqual(self.boxes.asked[-1], (S.CANCEL_TITLE, S.CANCEL_ASK))
 
@@ -489,8 +493,11 @@ class WindowEndToEnd(unittest.TestCase):
         cls.sdk = sdk.ensure(VERSION)
         cls._tmp = tempfile.TemporaryDirectory(prefix='rc-gui-')
         cls.tmp = os.path.realpath(cls._tmp.name)
-        cls.game = os.path.join(cls.tmp, 'games', 'The Question')
+        cls.game = os.path.join(cls.tmp, 'Games', 'The Question')
         shutil.copytree(os.path.join(cls.sdk, 'the_question'), cls.game, ignore=shutil.ignore_patterns('saves', 'cache'))
+        os.makedirs(os.path.join(cls.game, 'renpy'))              # a game of Windows has its engine beside game/, and the
+        shutil.copy(os.path.join(cls.sdk, 'renpy', 'vc_version.py'),                   # engine tells its version
+                    os.path.join(cls.game, 'renpy', 'vc_version.py'))
 
     @classmethod
     def tearDownClass(cls):
@@ -503,7 +510,8 @@ class WindowEndToEnd(unittest.TestCase):
             patch = mock.patch.object(app.messagebox, name, getattr(self.boxes, name))
             patch.start()
             self.addCleanup(patch.stop)
-        self.work = os.path.join(self.tmp, 'work-' + self.id().split('.')[-1])
+        name = 'The Question' if 'whole' in self.id() else 'cancelled'            # (the picture shows this one)
+        self.work = os.path.join(self.tmp, 'renpy-capture', name)
         self.root = tk.Tk()
         self.addCleanup(self.root.destroy)
         self.ctl = Controller(Settings(os.path.join(self.tmp, 'gui.json')),
@@ -513,9 +521,8 @@ class WindowEndToEnd(unittest.TestCase):
         self.app.apply_game()
         self.app.work_var.set(self.work)
         self.app.apply_work()
-        self.assertTrue(self.ctl.needs_version())                  # a copy outside the SDK does not tell its version:
-        self.app.version_var.set(VERSION)                          # the person chooses it from the list
-        self.app.version_box.event_generate('<<ComboboxSelected>>')
+        self.assertFalse(self.ctl.needs_version())                 # the engine beside the game tells its version
+        self.assertIn(VERSION, self.ctl.info.message)
         self.addCleanup(self.ctl.close)
 
     def wait(self, until, seconds=900):

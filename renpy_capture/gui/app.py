@@ -170,7 +170,8 @@ class LogView(ttk.Frame):
             self.text.delete('1.0', f'{extra + 1}.0')
         self.text.configure(state='disabled')
         if at_end:
-            self.text.see('end')
+            self.text.update_idletasks()                    # laid out first: a last line that wraps is seen whole
+            self.text.yview_moveto(1.0)
 
     def clear(self):
         self.text.configure(state='normal')

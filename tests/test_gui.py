@@ -13,9 +13,9 @@ from unittest import mock
 
 from renpy_capture import sdk
 from renpy_capture.gui import controller, strings as S
-from renpy_capture.gui.controller import (Controller, Problem, Run, Settings, Summary, Tracker, capture_arguments,
-                                          check_game, check_work, child_command, clean_path, clock_text,
-                                          default_workdir, summarize)
+from renpy_capture.gui.controller import (Controller, Problem, Run, Settings, Tracker, capture_arguments, check_game,
+                                          check_work, child_command, clean_path, clock_text, default_workdir,
+                                          summarize)
 
 
 def make_game(base, name='MyGame', version=None, cache=False, tl=(), around=()):
@@ -212,8 +212,9 @@ class WorkTest(TempTest):
             with mock.patch.dict(os.environ, {'OneDrive': self.tmp}):
                 self.assertEqual(controller.documents_folder(), home)          # the work would be uploaded
         with mock.patch.object(controller, '_xdg_documents', lambda: os.path.join(self.tmp, 'gone')), \
+                mock.patch.object(controller, 'WINDOWS', False), \
                 mock.patch('os.path.expanduser', lambda p: home if p == '~' else p):
-            self.assertEqual(controller.documents_folder(), home)
+            self.assertEqual(controller.documents_folder(), home)             # no Documents folder: the home folder
 
 
 class CommandTest(TempTest):
@@ -500,6 +501,16 @@ class RunTest(TempTest):
         self.assertRegex(lines[0], r'^=== \d{4}-\d\d-\d\d \d\d:\d\d:\d\d  ')
         self.assertEqual(sorted(lines[1:]), ['[1, 2]', 'not an event', 'Привет, мир: 128 lines'])   # no event in it
 
+    def test_the_capture_runs_in_the_folder_it_is_given(self):
+        os.makedirs(os.path.join(self.tmp, 'in here'))
+        script = os.path.join(self.tmp, 'where.py')
+        with open(script, 'w') as f:
+            f.write('import os, sys\nprint(os.getcwd(), file=sys.stderr)\n')
+        run = Run([sys.executable, script], os.path.join(self.tmp, 'run.log'), cwd=os.path.join(self.tmp, 'in here'))
+        run.start()
+        self.addCleanup(run.close)
+        self.assertEqual(wait_for(run), [('text', os.path.join(self.tmp, 'in here'))])
+
     def test_an_earlier_log_is_kept_and_added_to(self):
         for n in range(2):
             run = self.start(f'import sys; print("run {n}", file=sys.stderr)')
@@ -594,8 +605,8 @@ class FakeRun:
     """A capture that says what a test tells it to."""
     made = []
 
-    def __init__(self, argv, log, env=None):
-        self.argv, self.log = argv, log
+    def __init__(self, argv, log, env=None, cwd=None):
+        self.argv, self.log, self.cwd = argv, log, cwd
         self.said, self.code, self.cancelled, self.closed = [], None, False, False
         self.tail, self.logged, self.fail = [], [], None
         FakeRun.made.append(self)
@@ -699,6 +710,7 @@ class ControllerTest(TempTest):
         self.assertEqual(run.argv, ['renpy-capture', 'capture', self.game, os.path.join(self.tmp, 'my work'),
                                     '--progress-json', '--language', 'russian', '--text'])
         self.assertEqual(run.log, os.path.join(self.tmp, 'my work', 'renpy-capture.log'))
+        self.assertEqual(run.cwd, os.path.join(self.tmp, 'my work'))                # its paths are short ones
         self.assertTrue(os.path.isdir(os.path.join(self.tmp, 'my work')))
         self.assertEqual((c.phase, c.can_start()), ('running', False))
 
@@ -782,8 +794,8 @@ class ControllerTest(TempTest):
         c.set_game(self.game)
         original = c.spawn
 
-        def failing(argv, log, env=None):
-            run = original(argv, log, env)
+        def failing(argv, log, env=None, cwd=None):
+            run = original(argv, log, env, cwd)
             run.fail = FileNotFoundError('no such program')
             return run
 
