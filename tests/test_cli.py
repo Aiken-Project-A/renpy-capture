@@ -2,10 +2,14 @@
 import contextlib
 import inspect
 import io
+import json
+import os
+import signal
+import time
 import unittest
 from unittest import mock
 
-from renpy_capture import cli, runner
+from renpy_capture import cli, events, runner
 
 ENGINE = ['--timewarp', '2.5', '--display', 'xvfb', '--gpu', 'mesa', '--screen', '800x600', '--fast',
           '--language', 'russian', '--text']
@@ -71,6 +75,105 @@ class DispatchTest(unittest.TestCase):
                               got['language'], got['text'], got['quiet']),
                              (2.5, 'xvfb', 'mesa', '800x600', True, 'russian', True, True), func)
         self.assertEqual((seen['prun']['workers'], seen['prun']['batch']), (3, 6))
+
+
+class ProgressJsonTest(unittest.TestCase):
+    """--progress-json: the events on the standard output, the text for a person on the standard error."""
+
+    def run_capture(self, fake, *extra):
+        out, err = io.StringIO(), io.StringIO()
+        error = None
+        with mock.patch('renpy_capture.workflow.capture', fake), contextlib.redirect_stdout(out), \
+                contextlib.redirect_stderr(err):
+            try:
+                cli.main(['capture', 'game', 'work', *extra])
+            except BaseException as e:               # SystemExit, or what the capture raised
+                error = e
+        return out.getvalue(), err.getvalue(), error
+
+    def test_the_streams_are_kept_apart(self):
+        def capture(*a, **kw):
+            print('launch folder: work/run')
+            events.emit('stage', stage='capture')
+            print('round 1: 3 jobs')
+
+        out, err, error = self.run_capture(capture, '--progress-json')
+        self.assertIsNone(error)
+        self.assertEqual([json.loads(line) for line in out.splitlines()], [{'event': 'stage', 'stage': 'capture'}])
+        self.assertEqual(err, 'launch folder: work/run\nround 1: 3 jobs\n')
+        self.assertFalse(events.active())
+
+    def test_without_it_everything_is_text_on_the_standard_output(self):
+        def capture(*a, **kw):
+            print('launch folder: work/run')
+            events.emit('stage', stage='capture')
+
+        out, err, error = self.run_capture(capture)
+        self.assertEqual((out, err, error), ('launch folder: work/run\n', '', None))
+
+    def test_a_command_that_stops_says_why(self):
+        def capture(*a, **kw):
+            raise SystemExit("cannot tell the game's Ren'Py version")
+
+        out, err, error = self.run_capture(capture, '--progress-json')
+        self.assertEqual(error.code, "cannot tell the game's Ren'Py version")
+        self.assertEqual([json.loads(line) for line in out.splitlines()],
+                         [{'event': 'error', 'message': "cannot tell the game's Ren'Py version"}])
+
+    def test_a_game_that_cannot_be_read_says_so_in_one_line(self):
+        def capture(*a, **kw):
+            raise ValueError('game: no Ren\'Py game here')
+
+        out, _, error = self.run_capture(capture, '--progress-json')
+        self.assertEqual(error.code, "renpy-capture: game: no Ren'Py game here")
+        self.assertEqual(json.loads(out)['message'], "renpy-capture: game: no Ren'Py game here")
+
+    def test_a_bug_is_told_and_still_raised(self):
+        def capture(*a, **kw):
+            raise RuntimeError('boom')
+
+        out, _, error = self.run_capture(capture, '--progress-json')
+        self.assertIsInstance(error, RuntimeError)
+        self.assertEqual(json.loads(out), {'event': 'error', 'message': 'RuntimeError: boom'})
+
+    def test_only_the_commands_that_run_an_engine_have_the_option(self):
+        for cmd in ('capture', 'explore', 'run', 'prun'):
+            with self.assertRaises(SystemExit) as cm, contextlib.redirect_stdout(io.StringIO()) as buf:
+                cli.main([cmd, '--help'])
+            self.assertIn('--progress-json', buf.getvalue(), cmd)
+        with self.assertRaises(SystemExit) as cm, contextlib.redirect_stdout(io.StringIO()) as buf:
+            cli.main(['report', '--help'])
+        self.assertNotIn('--progress-json', buf.getvalue())
+
+
+@unittest.skipIf(os.name == 'nt', 'there is no SIGTERM on Windows: the Job Object of the engine does it')
+class StopTest(unittest.TestCase):
+    def test_a_capture_told_to_stop_ends_through_its_finally_clauses(self):
+        """The window's Cancel sends SIGTERM: the engine and the virtual screen are stopped by the `finally` of the
+        run, as they are on Ctrl+C."""
+        cleaned = []
+
+        def capture(*a, **kw):
+            try:
+                os.kill(os.getpid(), signal.SIGTERM)
+                for _ in range(500):                # the signal arrives long before this ends
+                    time.sleep(0.01)
+            finally:
+                cleaned.append('engine stopped')
+
+        before = signal.getsignal(signal.SIGTERM)
+        with mock.patch('renpy_capture.workflow.capture', capture), self.assertRaises(SystemExit) as cm:
+            cli.main(['capture', 'game', 'work'])
+        self.assertEqual(cm.exception.code, 128 + signal.SIGTERM)
+        self.assertEqual(cleaned, ['engine stopped'])
+        self.assertEqual(signal.getsignal(signal.SIGTERM), before)       # not left behind for the next command
+
+    def test_a_command_that_runs_no_engine_leaves_the_signal_alone(self):
+        before = signal.getsignal(signal.SIGTERM)
+        seen = []
+        with mock.patch('renpy_capture.analysis.report', lambda out: seen.append(signal.getsignal(signal.SIGTERM))):
+            cli.main(['report', 'out'])
+        self.assertEqual(seen, [before])
 
 
 class HelpTest(unittest.TestCase):

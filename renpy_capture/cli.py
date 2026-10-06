@@ -1,9 +1,11 @@
 """Command line: renpy-capture <command> …"""
 import argparse
 import os
+import signal
 import sys
+import threading
 
-from . import __version__
+from . import __version__, events
 
 EPILOG = """\
 The usual way, one command, everything in one work folder:
@@ -51,6 +53,10 @@ def main(argv=None):
         p.add_argument('--text', action='store_true',
                        help="keep the game's dialogue window, speech bubbles and menus in the frames (to check how "
                             'the text fits); without it frames show the scene alone')
+        p.add_argument('--progress-json', action='store_true',
+                       help='for a program that runs renpy-capture (a window, a script): the progress as one JSON '
+                            'object per line on the standard output, and the text meant for a person on the '
+                            'standard error (docs/guide.md, "The progress a program can read")')
 
     p = sub.add_parser('capture', help='the usual way in one command: every branch of a game, captured into a work '
                                        'folder, and the pages to read it')
@@ -134,12 +140,44 @@ def main(argv=None):
                                     'lines and frames next to these, step by step')
 
     a = ap.parse_args(argv)
+    machine = getattr(a, 'progress_json', False)
+    if machine:
+        events.enable()
+    restore = _stop_on_sigterm() if a.cmd in ('capture', 'explore', 'run', 'prun') else None
     try:
-        dispatch(a)
-    except (ImportError, ValueError) as e:        # a game we cannot read, a missing optional tool
-        if os.environ.get('RENPY_CAPTURE_DEBUG'):
-            raise
-        sys.exit(f'renpy-capture: {e}')
+        try:
+            dispatch(a)
+        except (ImportError, ValueError) as e:    # a game we cannot read, a missing optional tool
+            if os.environ.get('RENPY_CAPTURE_DEBUG'):
+                raise
+            sys.exit(f'renpy-capture: {e}')
+    except SystemExit as e:                       # a program that reads the progress is told why it ends
+        if isinstance(e.code, str):
+            events.emit('error', message=e.code)
+        raise
+    except Exception as e:
+        events.emit('error', message=f'{type(e).__name__}: {e}')
+        raise
+    finally:
+        if restore:
+            restore()
+        if machine:
+            events.disable()
+
+
+def _stop_on_sigterm():
+    """A capture told to stop (the window's Cancel, `kill`) ends the way Ctrl+C does, through its `finally` clauses:
+    the engine, the virtual screen and whatever they started are stopped first. Returns what puts the old handler
+    back. Windows has no such signal: there the Job Object of the engine does it."""
+    if os.name == 'nt' or threading.current_thread() is not threading.main_thread():
+        return None
+
+    def stop(signum, frame):
+        signal.signal(signum, signal.SIG_IGN)       # once: a second one must not cut the cleanup short
+        sys.exit(128 + signum)
+
+    old = signal.signal(signal.SIGTERM, stop)
+    return lambda: signal.signal(signal.SIGTERM, old if old is not None else signal.SIG_DFL)
 
 
 def dispatch(a):

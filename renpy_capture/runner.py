@@ -12,6 +12,7 @@ import threading
 import time
 import traceback
 
+from . import events
 from . import sdk as sdkmod
 from .analysis import report
 from .game import MODS, engine_hint, engine_version, game_dir
@@ -567,7 +568,9 @@ class Progress:
             elif r.get('ev') == 'end':
                 self.cur[path] = None
 
-    def line(self):
+    def numbers(self):
+        """How far the capture is: jobs done out of all, lines captured, the job under way (``now``, None when none or
+        several; ``engines`` counts those at work)."""
         main = os.path.join(self.out, 'log.jsonl')
         work = os.path.join(self.out, 'work')
         logs = [main] + sorted(os.path.join(work, d, 'log.jsonl') for d in
@@ -579,15 +582,30 @@ class Progress:
         lines = sum(self.jobs.get(main, {}).values())
         lines += sum(n for p, c in self.jobs.items() if p != main for j, n in c.items() if j not in done)
         now = [j for p, j in self.cur.items() if j and j not in done]
-        what = (f'now {now[0]}' if len(now) == 1 else f'{len(now)} engines at work' if now else
-                'finishing' if len(done) >= self.total else 'starting')
-        return f'  {min(len(done), self.total)} of {plural(self.total, "job")} done, {plural(lines, "line")}, {what}'
+        return {'jobs_done': min(len(done), self.total), 'jobs_total': self.total, 'lines': lines,
+                'now': now[0] if len(now) == 1 else None, 'engines': len(now)}
+
+    @staticmethod
+    def text(n):
+        what = (f"now {n['now']}" if n['engines'] == 1 else f"{n['engines']} engines at work" if n['engines'] else
+                'finishing' if n['jobs_done'] >= n['jobs_total'] else 'starting')
+        return (f'  {n["jobs_done"]} of {plural(n["jobs_total"], "job")} done, {plural(n["lines"], "line")}, {what}')
+
+    def line(self):
+        return self.text(self.numbers())
 
     def update(self):
-        if not self.tty and time.time() - self.last < 30:
+        """Called every second or two. A program that reads the output (``--progress-json``) gets the numbers every
+        time; a person gets a line every half minute, or in place every time on a terminal."""
+        due = self.tty or time.time() - self.last >= 30
+        if not due and not events.active():
+            return
+        n = self.numbers()
+        events.emit('progress', **n)
+        if not due:
             return
         self.last = time.time()
-        text = self.line()
+        text = self.text(n)
         if self.tty:
             sys.stdout.write('\r' + text.ljust(self.width))
             self.width = len(text)
@@ -742,7 +760,7 @@ def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, 
             try:
                 size, since = -1, time.time()
                 while p.poll() is None:
-                    time.sleep(2)
+                    time.sleep(1)                   # a window that watches the progress wants it every second
                     if bar:
                         bar.update()
                     cur = os.path.getsize(log) if os.path.exists(log) else 0
@@ -903,7 +921,7 @@ def prun(rundir, cfg_path, out, workers=4, timewarp=4.0, batch=8, display=None, 
         t.start()
     bar = Progress(out, len(cfg['jobs']))
     while any(t.is_alive() for t in threads):
-        time.sleep(2)
+        time.sleep(1)
         bar.update()
     bar.clear()
     for t in threads:
@@ -932,9 +950,15 @@ def explore(rundir, cfg_path, out, rounds=10, timewarp=4.0, limit=600, workers=1
         else:
             run(rundir, cfg_path, out, **engine)
         stats = report(out, brief=True)             # warnings and failed jobs only; `report` has the whole table
+        try:
+            recs = read_jsonl(os.path.join(out, 'log.jsonl'))
+        except FileNotFoundError:                   # the engine never got as far as its first line
+            raise SystemExit(f"nothing was captured: the engine did not record a single line (what it and the "
+                             f"screen said: {near(os.path.join(out, 'renpy.log'))}, "
+                             f"{near(os.path.join(out, 'display.log'))})") from None
         seen, menus = set(), collections.defaultdict(list)
         looped = set()                              # stopped as a loop: a mini-game gauge moved by screen timers,
-        for r in read_jsonl(os.path.join(out, 'log.jsonl')):           # retried with the timers running
+        for r in recs:                              # retried with the timers running
             if r['ev'] == 'shot' and r.get('menu') and 'pick' in r['menu']:   # waiting on a menu is not a choice
                 m = r['menu']
                 menus[r['job']].append((r['file'], r['line'], len(m['options']), m['pick']))

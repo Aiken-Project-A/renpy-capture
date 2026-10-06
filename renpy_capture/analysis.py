@@ -20,15 +20,17 @@ def _records(out):
 def report(out, brief=False):
     """Per job: interactions captured, distinct frames, skipped frames, menus, why it stopped, errors, duration; then
     warnings and where the time went. ``brief`` (between rounds of explore) keeps the warnings and the jobs that
-    stopped on an error only. Returns the totals: jobs, lines, pictures, jobs with errors."""
+    stopped on an error only. Returns the totals: jobs, lines, pictures, jobs with errors, and the warnings as data
+    (``{'kind': 'moving' | 'late' | 'slow', numbers}``) for a program that words them itself."""
     recs = _records(out)
     if recs is None:
         print('no log: the engine did not record a single event')
-        return {'jobs': 0, 'lines': 0, 'pictures': 0, 'errors': []}
+        return {'jobs': 0, 'lines': 0, 'pictures': 0, 'errors': [], 'warnings': []}
     jobs = collections.OrderedDict()
     frames = set()
     stops = collections.Counter()
     late = []                                       # wait_menus menus answered after wait_max
+    warned = []                                     # the warnings below as data: {'kind': …, numbers}
     for r in recs:
         j = jobs.setdefault(r['job'], {'shots': 0, 'frames': set(), 'skip': 0, 'menus': 0, 'stop': None,
                                        'errors': 0, 'end': None, 'prev': None})
@@ -68,14 +70,17 @@ def report(out, brief=False):
     secs = sum(r.get('seconds') or 0 for r in recs if r['ev'] == 'end')
     moving = sum(1 for r in recs if r['ev'] == 'shot' and r.get('anim'))
     if steps >= 20 and moving > 0.9 * steps:        # nearly every capture waited for a scene that never settled
+        warned.append({'kind': 'moving', 'moving': moving, 'steps': steps})
         print(f'warning: {moving} of {steps} captures were taken while something was still moving. An overlay '
               '(a mod, a HUD screen with an animation) may never stop; list its screens in `ui` or its files in '
               '`drop`, or leave it out with setup --exclude')
     if late:
+        warned.append({'kind': 'late', 'menus': len(late)})
         print(f"warning: {len(late)} menu(s) of wait_menus were answered after wait_max, the game's timer never led "
               f"on ({'; '.join(late[:5])}{'; …' if len(late) > 5 else ''}). A timer on an interface screen runs only "
               'with ui_timers; a longer timer needs a larger wait_max')
     if steps >= 20 and secs / steps > 2:            # a healthy engine takes a fraction of a second per interaction
+        warned.append({'kind': 'slow', 'seconds': round(secs / steps, 1)})
         print(f'warning: {secs / steps:.1f} s per interaction is very slow; the GPU driver may be in a bad state '
               '(try --gpu mesa or --display xvfb)')
     prof = collections.Counter()                    # where the time of the jobs went (captures since this field)
@@ -88,7 +93,7 @@ def report(out, brief=False):
               f"{prof['shots']:.0f} screenshots {prof['shot']:.0f} s ({prof['known']:.0f} of them pictures this "
               f"engine had saved, no PNG), PNG {prof['png']:.0f} s for {prof['encoded']:.0f} pictures, "
               f"writing {prof['save']:.0f} s, the rest {rest:.0f} s")
-    return {'jobs': len(jobs), 'lines': steps, 'pictures': len(frames),
+    return {'jobs': len(jobs), 'lines': steps, 'pictures': len(frames), 'warnings': warned,
             'errors': [k for k, j in jobs.items() if j['errors'] and not j['error'].startswith('ignored')]}
 
 
