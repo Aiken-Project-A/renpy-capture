@@ -220,6 +220,10 @@ class SizeTest(unittest.TestCase):
             runner._parse_size('big')
 
 
+LINUX_ONLY = unittest.skipIf(os.name == 'nt', 'Linux displays and drivers')
+
+
+@LINUX_ONLY
 class DisplayTest(unittest.TestCase):
     def test_an_x_server_that_does_not_start_points_to_the_log_that_exists(self):
         """Xvfb closes the descriptor without a display number when it dies at once; its words are in display.log."""
@@ -256,6 +260,8 @@ class LaunchTest(unittest.TestCase):
         os.makedirs(os.path.join(self.game, 'game'))
         self.info = {'game': self.game, 'version': '8.2.3', 'sdk': None, 'exclude': None}
         self.disp = runner.Xvfb(self.rundir, {}, (640, 480))
+        if runner.WINDOWS:
+            self.disp = runner.WinWindow(self.rundir, {}, (640, 480))
 
     def env(self, **kw):
         args = dict(timewarp=4.0, fast=False, text=False, language=None)
@@ -273,7 +279,8 @@ class LaunchTest(unittest.TestCase):
         self.assertEqual(env['HOME'], os.path.join(self.rundir, 'home'))
         self.assertTrue(env['PATH'].startswith(os.path.join(self.rundir, 'bin') + os.pathsep))
         self.assertEqual(env['VENDOR'], 'mesa')                     # the GPU vendor's
-        self.assertEqual(env['SDL_VIDEODRIVER'], 'x11')             # the display's
+        if not runner.WINDOWS:
+            self.assertEqual(env['SDL_VIDEODRIVER'], 'x11')         # the display's
         self.assertEqual((self.env()['RENPY_CAPTURE_FAST'], self.env()['RENPY_CAPTURE_TEXT']), ('0', '0'))
         self.assertNotIn('RENPY_LANGUAGE', env)
         self.assertNotIn('LD_LIBRARY_PATH', env)
@@ -286,6 +293,8 @@ class LaunchTest(unittest.TestCase):
         self.assertEqual(self.env(language='russian')['RENPY_LANGUAGE'], 'russian')
 
     def test_live2d_core_of_the_game_is_linked_for_the_engine(self):
+        if runner.WINDOWS:
+            self.skipTest('Linux: the shared library; see WindowsLaunchTest')
         lib = os.path.join(self.game, 'lib', 'py3-linux-x86_64')
         os.makedirs(lib)
         open(os.path.join(lib, 'libLive2DCubismCore.so'), 'w').close()
@@ -295,6 +304,8 @@ class LaunchTest(unittest.TestCase):
         self.env()                                                  # again: the link is there already
 
     def test_the_launcher_runs_the_sdk_on_the_launch_folder_under_that_environment(self):
+        if runner.WINDOWS:
+            self.skipTest('Linux: a shell script; see WindowsLaunchTest')
         inner = runner._write_launcher(self.rundir, '/sdk dir', self.disp, {'A': 'x y', 'B': '1'}, 'out/renpy.log')
         self.assertTrue(os.access(inner, os.X_OK))
         text = runner.read_text(inner)
@@ -316,6 +327,76 @@ class LaunchTest(unittest.TestCase):
         self.assertTrue(os.path.exists(keep))
 
 
+class WindowsLaunchTest(LaunchTest):
+    """What the engine is started with on Windows, on any system: no shell between, saves and persistent data in the
+    launch folder, no editor, the window does not take the keyboard."""
+
+    def setUp(self):
+        super().setUp()
+        for p in (mock.patch.object(runner, 'WINDOWS', True), mock.patch.object(runner.sdkmod, 'WINDOWS', True)):
+            p.start()
+            self.addCleanup(p.stop)
+        self.disp = runner.WinWindow(self.rundir, {}, (640, 480))
+
+    def test_saves_and_persistent_data_stay_in_the_launch_folder(self):
+        env = self.env()
+        home = os.path.join(os.path.abspath(self.rundir), 'home')
+        self.assertEqual(env['APPDATA'], home)
+        self.assertEqual(env['RENPY_PATH_TO_SAVES'], os.path.join(home, '.renpy'))
+        self.assertEqual(env['RENPY_EDIT_PY'], os.path.join(os.path.abspath(self.rundir), 'bin', runner.NO_EDITOR))
+        self.assertEqual(env['SDL_WINDOW_NO_ACTIVATION_WHEN_SHOWN'], '1')
+        self.assertNotIn('SDL_VIDEODRIVER', env)
+
+    def test_live2d_core_of_the_game_is_on_the_path(self):
+        lib = os.path.join(self.game, 'lib', 'py3-windows-x86_64')
+        os.makedirs(lib)
+        with open(os.path.join(lib, 'Live2DCubismCore.dll'), 'wb') as f:
+            f.write(b'MZ')
+        env = self.env()
+        l2d = os.path.join(os.path.abspath(self.rundir), 'live2d')
+        self.assertTrue(env['PATH'].startswith(l2d + os.pathsep))
+        self.assertTrue(os.path.samefile(os.path.join(l2d, 'Live2DCubismCore.dll'),
+                                         os.path.join(lib, 'Live2DCubismCore.dll')))
+        self.assertNotIn('LD_LIBRARY_PATH', env)
+        self.env()                                                  # again: the link is there already
+
+    def test_the_engine_is_started_without_a_shell(self):
+        sdk = os.path.join(self.tmp.name, 'sdk')
+        exe = os.path.join(sdk, 'lib', 'py3-windows-x86_64', 'renpy.exe')
+        os.makedirs(os.path.dirname(exe))
+        open(exe, 'wb').close()
+        with mock.patch.dict(os.environ, {'KEEP': 'me', 'DROP': 'me'}):
+            self.disp.unset = ('DROP',)
+            launch = runner._launcher(self.rundir, sdk, self.disp, {'A': 'x y'}, 'out/renpy.log')
+        self.assertEqual(launch.cmd, [exe, os.path.abspath(self.rundir)])
+        self.assertEqual((launch.env['A'], launch.env['KEEP']), ('x y', 'me'))  # the whole environment: Windows
+        self.assertNotIn('DROP', launch.env)                                   # needs SYSTEMROOT and the like
+        self.assertEqual(launch.log, os.path.abspath('out/renpy.log'))
+        self.assertFalse(os.path.exists(os.path.join(self.rundir, '.inner.sh')))
+
+    def test_ren_py_7_has_its_engine_under_py2(self):
+        sdk = os.path.join(self.tmp.name, 'sdk7')
+        exe = os.path.join(sdk, 'lib', 'py2-windows-x86_64', 'renpy.exe')
+        os.makedirs(os.path.dirname(exe))
+        open(exe, 'wb').close()
+        self.assertEqual(runner.sdkmod.engine(sdk), [exe])
+        with self.assertRaises(SystemExit):
+            runner.sdkmod.engine(self.tmp.name)
+
+    def test_the_displays_of_windows(self):
+        self.assertEqual(runner.default_display(), 'window')
+        for name, cls in (('window', runner.WinWindow), ('offscreen', runner.WinOffscreen),
+                          ('desktop', runner.WinDesktop)):
+            self.assertIsInstance(runner.make_display(name, self.rundir, {}, (640, 480)), cls)
+        for name in ('kwin', 'xvfb'):
+            with self.assertRaises(SystemExit) as cm:
+                runner.make_display(name, self.rundir, {}, (640, 480))
+            self.assertIn('Windows', str(cm.exception.code))
+        with mock.patch('builtins.print'):
+            self.assertEqual(runner.vendor_env('nvidia'), {})        # the system chooses the GPU there
+
+
+@LINUX_ONLY
 class VendorTest(unittest.TestCase):
     """Choosing a GPU vendor keeps every graphics API on it: loading NVIDIA's driver alone wakes a sleeping NVIDIA
     GPU (found on a laptop with runtime D3: Xvfb woke it through EGL, KWin through Vulkan)."""
