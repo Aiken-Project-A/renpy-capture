@@ -7,7 +7,7 @@
 [![Тести](https://github.com/Aiken-Project-A/renpy-capture/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/Aiken-Project-A/renpy-capture/actions/workflows/tests.yml)
 [![Ліцензія: MIT](https://img.shields.io/badge/license-MIT-2b6cb0)](../../LICENSE)
 ![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-2b6cb0)
-![Linux](https://img.shields.io/badge/platform-Linux-2b6cb0)
+![Linux | Windows](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-2b6cb0)
 ![Ren'Py 7.8 | 8.2 | 8.3](https://img.shields.io/badge/Ren%27Py-7.8%20%7C%208.2%20%7C%208.3-2b6cb0)
 
 [English](../../README.md) · [Русский](ru.md) · **Українська** · [简体中文](zh-CN.md) ·
@@ -81,7 +81,7 @@ xdg-open work/export-text-russian/index.html
 ```
 
 > [!NOTE]
-> Поки що лише Linux: Python 3.9 або новіший і KWin чи Xvfb для прихованого екрана. Підтримка Windows — на підході.
+> Linux або Windows 10/11, Python 3.9 або новіший. На Linux прихований екран дають KWin чи Xvfb; на Windows гра йде на окремому робочому столі, і на екрані нічого не з'являється (сторінка на Windows відкривається командою `start` замість `xdg-open`). Докладніше — у [посібнику](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/guide.md#on-windows).
 
 ## Чому картинкам можна довіряти
 

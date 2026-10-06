@@ -7,7 +7,7 @@
 [![测试](https://github.com/Aiken-Project-A/renpy-capture/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/Aiken-Project-A/renpy-capture/actions/workflows/tests.yml)
 [![许可证：MIT](https://img.shields.io/badge/license-MIT-2b6cb0)](../../LICENSE)
 ![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-2b6cb0)
-![Linux](https://img.shields.io/badge/platform-Linux-2b6cb0)
+![Linux | Windows](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-2b6cb0)
 ![Ren'Py 7.8 | 8.2 | 8.3](https://img.shields.io/badge/Ren%27Py-7.8%20%7C%208.2%20%7C%208.3-2b6cb0)
 
 [English](../../README.md) · [Русский](ru.md) · [Українська](uk.md) · **简体中文** ·
@@ -68,7 +68,7 @@ xdg-open work/export-text-russian/index.html
 ```
 
 > [!NOTE]
-> 目前仅支持 Linux：需要 Python 3.9 或更高版本，以及用于隐藏屏幕的 KWin 或 Xvfb。Windows 支持正在开发中。
+> 支持 Linux 和 Windows 10/11，需要 Python 3.9 或更高版本。在 Linux 上由 KWin 或 Xvfb 提供隐藏屏幕；在 Windows 上游戏运行在单独的桌面上，屏幕上不会出现任何东西（在 Windows 上请用 `start` 代替 `xdg-open` 打开页面）。详见[指南](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/guide.md#on-windows)。
 
 ## 为什么这些画面可信
 

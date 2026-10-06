@@ -7,7 +7,7 @@
 [![テスト](https://github.com/Aiken-Project-A/renpy-capture/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/Aiken-Project-A/renpy-capture/actions/workflows/tests.yml)
 [![ライセンス: MIT](https://img.shields.io/badge/license-MIT-2b6cb0)](../../LICENSE)
 ![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-2b6cb0)
-![Linux](https://img.shields.io/badge/platform-Linux-2b6cb0)
+![Linux | Windows](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-2b6cb0)
 ![Ren'Py 7.8 | 8.2 | 8.3](https://img.shields.io/badge/Ren%27Py-7.8%20%7C%208.2%20%7C%208.3-2b6cb0)
 
 [English](../../README.md) · [Русский](ru.md) · [Українська](uk.md) · [简体中文](zh-CN.md) ·
@@ -68,7 +68,7 @@ xdg-open work/export-text-russian/index.html
 ```
 
 > [!NOTE]
-> 現在は Linux のみ対応です。Python 3.9 以降と、見えない画面を作るための KWin または Xvfb が必要です。Windows 対応も準備中です。
+> Linux または Windows 10/11 で動作し、Python 3.9 以降が必要です。Linux では見えない画面に KWin または Xvfb を使い、Windows ではゲームが専用のデスクトップで動くため、画面には何も表示されません（Windows では `xdg-open` の代わりに `start` でページを開きます）。詳しくは[ガイド](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/guide.md#on-windows)をご覧ください。
 
 ## 画像を信頼できる理由
 

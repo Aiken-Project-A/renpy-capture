@@ -7,7 +7,7 @@
 [![Pruebas](https://github.com/Aiken-Project-A/renpy-capture/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/Aiken-Project-A/renpy-capture/actions/workflows/tests.yml)
 [![Licencia: MIT](https://img.shields.io/badge/license-MIT-2b6cb0)](../../LICENSE)
 ![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-2b6cb0)
-![Linux](https://img.shields.io/badge/platform-Linux-2b6cb0)
+![Linux | Windows](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-2b6cb0)
 ![Ren'Py 7.8 | 8.2 | 8.3](https://img.shields.io/badge/Ren%27Py-7.8%20%7C%208.2%20%7C%208.3-2b6cb0)
 
 [English](../../README.md) · [Русский](ru.md) · [Українська](uk.md) · [简体中文](zh-CN.md) ·
@@ -81,7 +81,7 @@ xdg-open work/export-text-russian/index.html
 ```
 
 > [!NOTE]
-> Por ahora, solo Linux: Python 3.9 o superior, y KWin o Xvfb para la pantalla oculta. La versión para Windows está en camino.
+> Linux o Windows 10/11, con Python 3.9 o superior. En Linux, KWin o Xvfb para la pantalla oculta; en Windows el juego se ejecuta en un escritorio aparte y en la pantalla no aparece nada (en Windows, la página se abre con `start` en lugar de `xdg-open`). Más detalles en [la guía](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/guide.md#on-windows).
 
 ## Por qué puedes confiar en las imágenes
 

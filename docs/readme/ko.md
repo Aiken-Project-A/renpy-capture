@@ -7,7 +7,7 @@
 [![테스트](https://github.com/Aiken-Project-A/renpy-capture/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/Aiken-Project-A/renpy-capture/actions/workflows/tests.yml)
 [![라이선스: MIT](https://img.shields.io/badge/license-MIT-2b6cb0)](../../LICENSE)
 ![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-2b6cb0)
-![Linux](https://img.shields.io/badge/platform-Linux-2b6cb0)
+![Linux | Windows](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-2b6cb0)
 ![Ren'Py 7.8 | 8.2 | 8.3](https://img.shields.io/badge/Ren%27Py-7.8%20%7C%208.2%20%7C%208.3-2b6cb0)
 
 [English](../../README.md) · [Русский](ru.md) · [Українська](uk.md) · [简体中文](zh-CN.md) ·
@@ -68,7 +68,7 @@ xdg-open work/export-text-russian/index.html
 ```
 
 > [!NOTE]
-> 지금은 Linux에서만 쓸 수 있습니다. Python 3.9 이상, 그리고 보이지 않는 화면을 만들 KWin 또는 Xvfb가 필요합니다. Windows 지원도 준비 중입니다.
+> Linux 또는 Windows 10/11에서 동작하며 Python 3.9 이상이 필요합니다. Linux에서는 보이지 않는 화면에 KWin 또는 Xvfb를 쓰고, Windows에서는 게임이 별도의 데스크톱에서 실행되어 화면에는 아무것도 나타나지 않습니다(Windows에서는 `xdg-open` 대신 `start`로 페이지를 엽니다). 자세한 내용은 [가이드](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/guide.md#on-windows)를 참고하세요.
 
 ## 이미지를 믿을 수 있는 이유
 

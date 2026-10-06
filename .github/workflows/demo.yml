@@ -98,7 +98,7 @@ jobs:
           <main>
           <p class="kicker">Live demo</p>
           <h1>renpy-capture</h1>
-          <p>renpy-capture is a Linux command-line tool that plays a Ren'Py visual novel with the official Ren'Py SDK on a
+          <p>renpy-capture is a command-line tool for Linux and Windows that plays a Ren'Py visual novel with the official Ren'Py SDK on a
           virtual screen and saves a screenshot of every line, in every branch, taken by the game's own engine.</p>
 
           <ul class="links">
