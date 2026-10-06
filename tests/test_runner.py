@@ -4,6 +4,9 @@ import contextlib
 import io
 import json
 import os
+import signal
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -323,9 +326,23 @@ class LaunchTest(unittest.TestCase):
                 os.path.join(self.rundir, 'traceback.txt'), os.path.join(self.rundir, 'errors.txt')]
         for p in gone + [keep]:
             open(p, 'w').close()
-        runner._fresh_start(self.rundir)
+        runner._fresh_start(self.rundir, '/no/sdk')
         self.assertEqual([p for p in gone if os.path.exists(p)], [])
         self.assertTrue(os.path.exists(keep))
+
+    @LINUX_ONLY                     # (on Windows the engine's Job Object dies with the capture)
+    def test_an_engine_left_by_a_killed_capture_is_stopped_first(self):
+        """A capture killed outright (SIGTERM, a closed terminal) leaves its engine running on the launch folder,
+        writing into the same output as the next capture: a launch stops it first, and only it."""
+        sdk = os.path.join(self.tmp.name, 'sdk')
+        sleep = [sys.executable, '-c', 'import time; time.sleep(60)', os.path.join(sdk, 'lib', 'py3', 'renpy')]
+        left = subprocess.Popen(sleep + [self.rundir])
+        other = subprocess.Popen(sleep + [self.rundir + '-w0'])        # a worker's folder is another one
+        self.addCleanup(other.kill)
+        self.addCleanup(left.kill)
+        runner._fresh_start(self.rundir, sdk)
+        self.assertEqual(left.wait(10), -signal.SIGKILL)
+        self.assertIsNone(other.poll())
 
 
 class WindowsLaunchTest(LaunchTest):

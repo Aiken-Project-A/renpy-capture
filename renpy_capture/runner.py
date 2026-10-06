@@ -688,9 +688,11 @@ def _launcher(rundir, sdk_dir, disp, env, rlog):
     return Launch(sdkmod.engine(sdk_dir) + [os.path.abspath(rundir)], full, os.path.abspath(rlog))
 
 
-def _fresh_start(rundir):
+def _fresh_start(rundir, sdk_dir):
     """Every launch starts with default persistent data (plus the config's values): earlier launches in this folder
-    leave no "seen" marks behind. And no traceback of an earlier launch is taken for this one's."""
+    leave no "seen" marks behind. And no traceback of an earlier launch is taken for this one's, and no engine of a
+    capture that was killed outright (its engine outlived it) goes on writing into this one's output."""
+    sweep(sdk_dir, rundir)
     for f in ('traceback.txt', 'errors.txt'):
         p = os.path.join(rundir, f)
         if os.path.exists(p):
@@ -725,7 +727,7 @@ def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, 
     disp = make_display(display, rundir, genv, _parse_size(screen or cfg.get('screen')))
     env = _engine_env(info, rundir, cfg_path, out, disp, genv, timewarp, fast, text, language or cfg.get('language'))
     inner = _launcher(rundir, sdk_dir, disp, env, rlog)
-    _fresh_start(rundir)
+    _fresh_start(rundir, sdk_dir)
     log, done = os.path.join(out, 'log.jsonl'), os.path.join(out, 'done.txt')
     ids = [j['id'] for j in cfg['jobs']]
     bar = Progress(out, len(ids)) if progress else None
