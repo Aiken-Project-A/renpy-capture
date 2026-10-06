@@ -98,8 +98,8 @@ as a zip that needs nothing installed (no Python, no pipx).
 <img src="https://raw.githubusercontent.com/Aiken-Project-A/renpy-capture/main/docs/images/window.png" width="70%" alt="The window of renpy-capture after a capture of The Question: the game folder, the work folder, the translation to capture, the Capture button, and under them what was captured and the buttons to open the page and the folder">
 </div>
 
-The window tells in plain words what it is doing (the first time it downloads the engine of the game's version: about
-150 MB, once), has a **Cancel** button that stops everything, and ends with what was captured and two buttons: **Open
+The window tells in plain words what it is doing (the first time it downloads the engine of the game's version: 150 to
+165 MB, once), has a **Cancel** button that stops everything, and ends with what was captured and two buttons: **Open
 the page** (the book of the game, in your browser) and **Open the folder**. Capture the same game into the same work
 folder again and it goes on where it stopped. A game with a translation in `game/tl` offers it in a list, and **Show the
 text box** keeps the game's dialogue window in the pictures, to check how the translation fits.
