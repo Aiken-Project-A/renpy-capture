@@ -9,7 +9,8 @@ import unittest
 from unittest import mock
 
 from renpy_capture import runner
-from renpy_capture.game import Game, NoGame, SeveralGames, engine_hint, engine_version, game_dir
+from renpy_capture.game import (Game, NoGame, SeveralGames, engine_hint, engine_major, engine_version,
+                               game_dir)
 
 from .rpatool import write_rpa
 
@@ -61,6 +62,29 @@ class GameTest(unittest.TestCase):
         self.assertEqual(sorted(cm.exception.found), [os.path.join(many, 'One'), os.path.join(many, 'Two')])
         self.assertIsInstance(cm.exception, ValueError)
         self.assertIn('several', str(cm.exception))
+
+    def test_a_search_for_a_game_can_be_cut_short(self):
+        """A person who points to a drive or to Documents must not wait for every folder on it to be looked into."""
+        deep = os.path.join(self.tmp.name, 'Many', 'a')
+        os.makedirs(os.path.join(deep, 'Game', 'game'))
+        open(os.path.join(deep, 'Game', 'game', 'script.rpy'), 'w').close()
+        many = os.path.join(self.tmp.name, 'Many')
+        self.assertEqual(game_dir(many), os.path.join(deep, 'Game', 'game'))
+        self.assertEqual(game_dir(many, 3), os.path.join(deep, 'Game', 'game'))
+        with self.assertRaises(NoGame):
+            game_dir(many, 2)
+
+    def test_the_major_version_the_cache_tells(self):
+        game = os.path.join(self.tmp.name, 'Projects', 'mine')
+        os.makedirs(os.path.join(game, 'game', 'cache'))
+        open(os.path.join(game, 'game', 'script.rpy'), 'w').close()
+        self.assertIsNone(engine_major(game))
+        for name, major in (('bytecode-27.rpyb', '7'), ('bytecode-39.rpyb', '8')):
+            for old in os.listdir(os.path.join(game, 'game', 'cache')):
+                os.remove(os.path.join(game, 'game', 'cache', old))
+            open(os.path.join(game, 'game', 'cache', name), 'wb').close()
+            self.assertEqual(engine_major(game), major)
+        self.assertIn("Ren'Py 8 (Python 3.9, bytecode-39.rpyb)", engine_hint(game))
 
     def test_engine_version(self):
         self.assertEqual(engine_version(self.root), '8.2.3')

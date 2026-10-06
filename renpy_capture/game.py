@@ -32,17 +32,20 @@ def _has_scripts(d):
         return False
 
 
-def game_dir(path):
+def game_dir(path, limit=None):
     """The game/ directory of the game at ``path``: the game folder itself, its game/ directory, or a folder up to
     three levels above it (downloaded games often come wrapped in extra folders). Raises NoGame, or SeveralGames
-    (both are ValueErrors)."""
+    (both are ValueErrors). ``limit`` looks into that many folders at most, for a person who points to a drive or to
+    the Documents folder: more than that is not found."""
     path = os.path.abspath(path)
     if os.path.basename(path) == 'game' and _has_scripts(path):
         return path
     if _has_scripts(os.path.join(path, 'game')):
         return os.path.join(path, 'game')
     found = []
-    for d, subs, _ in os.walk(path):
+    for looked, (d, subs, _) in enumerate(os.walk(path), 1):
+        if limit and looked > limit:
+            break
         if d.count(os.sep) - path.rstrip(os.sep).count(os.sep) >= 3:
             subs[:] = []
             continue
@@ -78,17 +81,32 @@ def engine_version(game):
     return _engine_in(root) or _engine_in(os.path.dirname(root))
 
 
-def engine_hint(game):
-    """What the game's own cache tells of the engine that ran it last (bytecode-39.rpyb: Ren'Py 8 on Python 3.9), or
-    ''. A hint for choosing --renpy-version, not a version."""
+def _cache_engine(game):
+    """What the game's own cache tells of the engine that ran it last: (the major version of Ren'Py, the Python it
+    ran on, the cache file), e.g. ('8', '3.9', 'bytecode-39.rpyb'); None without a cache."""
     cache = os.path.join(game_dir(game), 'cache')
     names = sorted(os.listdir(cache)) if os.path.isdir(cache) else []
     for n in names:
         m = re.fullmatch(r'bytecode-(\d)(\d+)\.rpyb', n)
         if m:
-            major = '7' if m.group(1) == '2' else '8'
-            return f"its cache was made by Ren'Py {major} (Python {m.group(1)}.{m.group(2)}, {n})"
-    return ''
+            return ('7' if m.group(1) == '2' else '8'), f'{m.group(1)}.{m.group(2)}', n
+    return None
+
+
+def engine_hint(game):
+    """What the game's own cache tells of the engine that ran it last (bytecode-39.rpyb: Ren'Py 8 on Python 3.9), or
+    ''. A hint for choosing --renpy-version, not a version."""
+    found = _cache_engine(game)
+    if not found:
+        return ''
+    major, python, name = found
+    return f"its cache was made by Ren'Py {major} (Python {python}, {name})"
+
+
+def engine_major(game):
+    """'7' or '8' as far as the game's cache tells, else None: a hint for choosing --renpy-version."""
+    found = _cache_engine(game)
+    return found[0] if found else None
 
 
 class Game:
