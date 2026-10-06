@@ -351,7 +351,83 @@ class Window:
         pass
 
 
+class WinWindow:
+    """Windows, the user's desktop: the game window is visible while the capture runs (do not touch it). The engine
+    and whatever it starts run in a Job Object: they die with the capture, also on Ctrl+C."""
+    name = 'window'
+    env, unset = {}, ()
+
+    def __init__(self, rundir, genv, size):
+        self.rundir, self.p, self.job = rundir, None, None
+
+    def start(self, launch, log):
+        from . import winproc
+        self.job = winproc.Job()
+        with open(launch.log, 'ab') as out:
+            out.seek(0, os.SEEK_END)                # the engine gets the handle, not Python's append mode: it writes
+            self.p = winproc.start(launch.cmd, launch.env, out, self.job, self.desktop())   # where this one points
+        return self.p
+
+    def desktop(self):
+        return None
+
+    def stop(self):
+        if self.job is None:
+            return
+        self.job.kill()
+        try:
+            self.p.wait(10)
+        except subprocess.TimeoutExpired:
+            pass
+        self.job.close()
+        self.job = None
+
+    def cleanup(self):
+        pass
+
+
+class WinOffscreen(WinWindow):
+    """Windows, the user's desktop, with the game window kept beyond the edge of the screen: it is still drawn, but
+    not seen (it shows for a moment at each start of the engine, and in the taskbar)."""
+    name = 'offscreen'
+
+    def start(self, launch, log):
+        from . import winproc
+        p = super().start(launch, log)
+        self.mover = winproc.Mover(p.pid)
+        self.mover.start()
+        return p
+
+    def stop(self):
+        mover = getattr(self, 'mover', None)
+        if mover:
+            mover.stop()
+        super().stop()
+
+
+class WinDesktop(WinWindow):
+    """Windows, a desktop of its own (CreateDesktop): the game window is never on the user's screen, and the user's
+    mouse and keyboard never reach it."""
+    name = 'desktop'
+    count = 0
+
+    def desktop(self):
+        from . import winproc
+        WinDesktop.count += 1
+        self.desk = winproc.Desktop(f'renpy-capture-{os.getpid()}-{threading.get_ident() % 100000}-'
+                                    f'{WinDesktop.count}')
+        return self.desk.name
+
+    def stop(self):
+        super().stop()
+        desk = getattr(self, 'desk', None)
+        if desk:
+            desk.close()
+
+
 def default_display():
+    if WINDOWS:
+        return 'window'
     if shutil.which('kwin_wayland') and shutil.which('dbus-run-session'):
         return 'kwin'
     if shutil.which('Xvfb'):
@@ -380,6 +456,9 @@ def vendor_env(gpu):
     1.3.234 or newer; older ones ignore it."""
     if gpu == 'auto':
         return {}
+    if WINDOWS:
+        print(f'gpu {gpu!r}: on Windows the system chooses the GPU (Windows settings, Graphics), not renpy-capture')
+        return {}
     egl = EGL.get(gpu)
     if egl is None or not os.path.exists(egl):
         print(f'gpu {gpu!r}: no {egl or "known EGL vendor file"} here, leaving the GPU choice to the system')
@@ -398,19 +477,27 @@ def vendor_env(gpu):
 
 def make_display(name, rundir, genv, size):
     name = name or default_display()
-    cls = {'kwin': KWin, 'xvfb': Xvfb, 'window': Window}.get(name)
-    if cls is None:
-        raise SystemExit(f'unknown display {name!r}: one of {", ".join(DISPLAYS)}')
+    native = ('window', 'offscreen', 'desktop') if WINDOWS else ('kwin', 'xvfb', 'window')
+    if name not in DISPLAYS:
+        raise SystemExit(f'unknown display {name!r}: one of {", ".join(native)}')
+    if name not in native:
+        raise SystemExit(f'display {name!r} is not there on {"Windows" if WINDOWS else "this system"}: '
+                         f'one of {", ".join(native)}')
+    if WINDOWS:
+        return {'window': WinWindow, 'offscreen': WinOffscreen, 'desktop': WinDesktop}[name](rundir, genv, size)
     need = {'kwin': ('kwin_wayland', 'dbus-run-session'), 'xvfb': ('Xvfb',)}.get(name, ())
     missing = [c for c in need if not shutil.which(c)]
     if missing:
         raise SystemExit(f'display {name!r} needs {", ".join(missing)}, which is not installed')
-    return cls(rundir, genv, size)
+    return {'kwin': KWin, 'xvfb': Xvfb, 'window': Window}[name](rundir, genv, size)
 
 
 def sweep(sdk_dir, rundir):
     """Kill an engine of this launch folder that outlived its process group (its command line runs the SDK's
-    Python on exactly this folder; a worker folder <rundir>-w0 is another folder)."""
+    Python on exactly this folder; a worker folder <rundir>-w0 is another folder). On Windows its Job Object has
+    killed it already."""
+    if not os.path.isdir('/proc'):
+        return
     lib, rd = os.path.join(sdk_dir, 'lib') + os.sep, os.path.abspath(rundir)
     for pid in os.listdir('/proc'):
         if not pid.isdigit() or int(pid) == os.getpid():
@@ -541,16 +628,31 @@ def _engine_env(info, rundir, cfg_path, out, disp, genv, timewarp, fast, text, l
             raise SystemExit(f"language {language!r}: the game has no {tl}")
         env['RENPY_LANGUAGE'] = language
     env.update(disp.env)
+    if WINDOWS:
+        home = os.path.join(os.path.abspath(rundir), 'home')
+        env.update({'APPDATA': home,                                    # saves and persistent data, the game's
+                    'RENPY_PATH_TO_SAVES': os.path.join(home, '.renpy'),   # and those games share, stay in the launch
+                                                                           # folder, as HOME keeps them on Linux
+                    'RENPY_EDIT_PY': os.path.join(os.path.abspath(rundir), 'bin', NO_EDITOR),   # an error opens no editor
+                    'SDL_WINDOW_NO_ACTIVATION_WHEN_SHOWN': '1'})             # the window leaves the keyboard alone
     # Live2D: the SDK from renpy.org has no Cubism Core (Live2D licenses it), a game with Live2D ships it in its own
     # lib/, and the engine looks for it next to itself, then by name: a folder with one link to the game's core
-    core = os.path.join(os.path.dirname(game_dir(info['game'])), 'lib', 'py3-linux-x86_64',
-                        'libLive2DCubismCore.so')
-    if os.path.exists(core):
+    lib = os.path.join(os.path.dirname(game_dir(info['game'])), 'lib')
+    if WINDOWS:
+        cores = [os.path.join(lib, d, 'Live2DCubismCore.dll') for d in ('py3-windows-x86_64', 'py2-windows-x86_64')]
+    else:
+        cores = [os.path.join(lib, 'py3-linux-x86_64', 'libLive2DCubismCore.so')]
+    core = next((c for c in cores if os.path.exists(c)), None)
+    if core:
         l2d = os.path.join(os.path.abspath(rundir), 'live2d')
         os.makedirs(l2d, exist_ok=True)
-        if not os.path.lexists(os.path.join(l2d, 'libLive2DCubismCore.so')):
-            os.symlink(core, os.path.join(l2d, 'libLive2DCubismCore.so'))
-        env['LD_LIBRARY_PATH'] = l2d
+        name = os.path.basename(core)
+        if not os.path.lexists(os.path.join(l2d, name)):
+            _place(core, os.path.join(l2d, name))
+        if WINDOWS:                                 # a DLL by name is looked for on PATH too
+            env['PATH'] = l2d + os.pathsep + env['PATH']
+        else:
+            env['LD_LIBRARY_PATH'] = l2d
     return env
 
 
@@ -565,6 +667,21 @@ def _write_launcher(rundir, sdk_dir, disp, env, rlog):
                 + f' >> {shlex.quote(os.path.abspath(rlog))} 2>&1\n')
     os.chmod(inner, 0o755)
     return inner
+
+
+Launch = collections.namedtuple('Launch', 'cmd env log')
+
+
+def _launcher(rundir, sdk_dir, disp, env, rlog):
+    """What the display starts: on Linux the script of _write_launcher; on Windows, which has no shell to put between,
+    the engine's command, its whole environment and the file for its output (a Launch)."""
+    if not WINDOWS:
+        return _write_launcher(rundir, sdk_dir, disp, env, rlog)
+    full = dict(os.environ)
+    for u in disp.unset:
+        full.pop(u, None)
+    full.update(env)
+    return Launch(sdkmod.engine(sdk_dir) + [os.path.abspath(rundir)], full, os.path.abspath(rlog))
 
 
 def _fresh_start(rundir):
@@ -603,7 +720,7 @@ def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, 
     genv = vendor_env(gpu)
     disp = make_display(display, rundir, genv, _parse_size(screen or cfg.get('screen')))
     env = _engine_env(info, rundir, cfg_path, out, disp, genv, timewarp, fast, text, language or cfg.get('language'))
-    inner = _write_launcher(rundir, sdk_dir, disp, env, rlog)
+    inner = _launcher(rundir, sdk_dir, disp, env, rlog)
     _fresh_start(rundir)
     log, done = os.path.join(out, 'log.jsonl'), os.path.join(out, 'done.txt')
     ids = [j['id'] for j in cfg['jobs']]

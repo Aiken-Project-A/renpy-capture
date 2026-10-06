@@ -17,10 +17,18 @@ Checking a capture: report, gaps, compare.  Finer work: run, prun, forget, sdk.
 GAME = "the game: its folder (the one with game/ inside) or game/ itself"
 CONFIG = 'the config file (JSON): the jobs and how to capture them; `init` writes a starter one'
 RUNDIR = 'the launch folder made by `setup`: links to the game plus the capture script'
+DISPLAY_HELP = ('where the engine draws. Linux: kwin (a virtual KDE compositor, GPU), xvfb (a virtual X server, '
+                'software GL) or window (your desktop); default: the first one available. Windows: window (your '
+                'desktop, the default), offscreen (your desktop, the window beyond the edge of the screen) or '
+                'desktop (a desktop of its own, never on your screen)')
 OUT = 'the capture folder: every picture (frames/) and the log of every line (log.jsonl)'
 
 
 def main(argv=None):
+    if os.name == 'nt':                             # a console or a file in the code page of Windows: a line of the
+        for stream in (sys.stdout, sys.stderr):     # game it cannot spell must not stop the capture
+            if hasattr(stream, 'reconfigure'):
+                stream.reconfigure(errors='backslashreplace')
     ap = argparse.ArgumentParser(
         prog='renpy-capture', formatter_class=argparse.RawDescriptionHelpFormatter, epilog=EPILOG,
         description="Screenshots of every line of a Ren'Py game, taken by the game's own engine "
@@ -31,9 +39,8 @@ def main(argv=None):
     def engine_opts(p):
         p.add_argument('--timewarp', type=float, default=4.0, help='game seconds per real second of animation '
                        '(default 4; the frame clock makes runs repeatable at any value)')
-        p.add_argument('--display', choices=('kwin', 'xvfb', 'window'),
-                       help='where the engine draws: kwin (a virtual KDE compositor, GPU), xvfb (a virtual X server, '
-                            'software GL) or window (your desktop; default: the first one available)')
+        p.add_argument('--display', choices=('kwin', 'xvfb', 'window', 'offscreen', 'desktop'),
+                       help=DISPLAY_HELP)
         p.add_argument('--gpu', choices=('auto', 'nvidia', 'mesa'), help='OpenGL vendor for the engine (default auto)')
         p.add_argument('--screen', help='size of the virtual screen, WIDTHxHEIGHT (default 1920x1200)')
         p.add_argument('--fast', action='store_true',
