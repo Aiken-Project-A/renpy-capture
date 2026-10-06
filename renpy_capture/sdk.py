@@ -2,15 +2,21 @@
 unrpyc, which reads the compiled scripts of games that ship no sources: a pinned release, downloaded once.
 
 The capture never runs the game's own executable: it runs the official SDK of the same version on a launch folder
-that links to the game's files. SDKs are kept in ``$RENPY_CAPTURE_SDK`` (default ``~/.cache/renpy-capture/sdk``).
+that links to the game's files. SDKs are kept in ``$RENPY_CAPTURE_SDK`` (default ``~/.cache/renpy-capture/sdk``, on
+Windows ``%LOCALAPPDATA%\\renpy-capture\\sdk``).
+
+Every SDK package holds the engine for Linux, Windows and macOS alike (the .tar.bz2 and the .zip of 8.3.2 and 7.8.7
+hold the same files); Windows takes the .zip, which unpacks without bzip2 and several times faster there.
 """
-import fcntl
 import hashlib
 import os
 import shutil
 import tarfile
 import tempfile
 import urllib.request
+import zipfile
+
+WINDOWS = os.name == 'nt'
 
 DOWNLOADS = 'https://www.renpy.org/dl/'
 # unrpyc (https://github.com/CensoredUsername/unrpyc, MIT): its release, and the sha256 of its Python files and license
@@ -18,26 +24,81 @@ DOWNLOADS = 'https://www.renpy.org/dl/'
 UNRPYC = ('2.0.4', '06d991966ec7e1f6470b0b02e2c4c9360c5fcb18be62b3b9ce049da9e03f0bbf')
 
 
+def _cache_base():
+    if os.environ.get('XDG_CACHE_HOME'):
+        return os.environ['XDG_CACHE_HOME']
+    if WINDOWS and os.environ.get('LOCALAPPDATA'):
+        return os.environ['LOCALAPPDATA']
+    return os.path.expanduser('~/.cache')
+
+
 def cache_root():
-    return os.environ.get('RENPY_CAPTURE_SDK') or os.path.join(
-        os.environ.get('XDG_CACHE_HOME') or os.path.expanduser('~/.cache'), 'renpy-capture', 'sdk')
+    return os.environ.get('RENPY_CAPTURE_SDK') or os.path.join(_cache_base(), 'renpy-capture', 'sdk')
+
+
+def _lock(f):
+    """Wait for the lock of an open file; it is held until _unlock or until the process dies."""
+    if os.name == 'nt':
+        import msvcrt
+        f.seek(0)
+        while True:
+            try:
+                msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)   # one byte: past the end of an empty file is fine
+                return
+            except OSError:                          # LK_LOCK gives up after ten tries a second apart: try again
+                pass
+    else:
+        import fcntl
+        fcntl.flock(f, fcntl.LOCK_EX)
+
+
+def _unlock(f):
+    if os.name == 'nt':                             # Windows frees a lock some time after its file is closed:
+        import msvcrt                               # free it now, for whoever waits
+        f.seek(0)
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
 
 
 def _once(root, lock_name, ready, make):
     """``make()`` unless ``ready()``, one process at a time: the others wait on the lock and find it ready."""
     os.makedirs(root, exist_ok=True)
-    with open(os.path.join(root, lock_name), 'w') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)            # held until the file is closed or the process dies
-        if not ready():
-            make()
+    with open(os.path.join(root, lock_name), 'a+') as lock:     # (not 'w': no truncating a file another one locks)
+        _lock(lock)
+        try:
+            if not ready():
+                make()
+        finally:
+            _unlock(lock)
 
 
-def _unpack(tarball, dest):
-    with tarfile.open(tarball) as t:
+def _unpack(archive, dest):
+    if archive.endswith('.zip'):
+        with zipfile.ZipFile(archive) as z:         # zipfile drops absolute paths and '..' by itself
+            z.extractall(dest)
+        return
+    with tarfile.open(archive) as t:
         if hasattr(tarfile, 'tar_filter'):          # Python 3.12+ (and the security releases before it): refuse
             t.extractall(dest, filter='tar')        # absolute paths and paths outside dest
         else:
             t.extractall(dest)
+
+
+def package(version):
+    """The name of the SDK package to download: the .zip on Windows, the .tar.bz2 elsewhere."""
+    return f'renpy-{version}-sdk.zip' if WINDOWS else f'renpy-{version}-sdk.tar.bz2'
+
+
+def engine(sdk_dir):
+    """The command that starts the engine of an SDK, before the launch folder: renpy.sh, or on Windows the engine
+    renpy.sh would pick there, lib/py3-windows-x86_64/renpy.exe (py2-… for Ren'Py 7), which runs renpy.py with the
+    SDK's own Python."""
+    if not WINDOWS:
+        return [os.path.join(sdk_dir, 'renpy.sh')]
+    for py in ('py3', 'py2'):
+        exe = os.path.join(sdk_dir, 'lib', f'{py}-windows-x86_64', 'renpy.exe')
+        if os.path.isfile(exe):
+            return [exe]
+    raise SystemExit(f"{sdk_dir}: no lib/py3-windows-x86_64/renpy.exe (nor py2-…) in this Ren'Py SDK")
 
 
 def ensure(version):
@@ -55,7 +116,7 @@ def ensure(version):
 def fetch(version, root, d):
     """Download, check and unpack the SDK into ``d``. The archive is unpacked aside and moved in whole, so a cut-off
     unpack never looks like a ready SDK."""
-    name = f'renpy-{version}-sdk.tar.bz2'
+    name = package(version)
     base = f'{DOWNLOADS}{version}/'
     tb = os.path.join(root, name)
     try:
@@ -94,7 +155,7 @@ def fetch(version, root, d):
 
 
 def tools_root():
-    return os.path.join(os.environ.get('XDG_CACHE_HOME') or os.path.expanduser('~/.cache'), 'renpy-capture', 'tools')
+    return os.path.join(_cache_base(), 'renpy-capture', 'tools')
 
 
 def unrpyc():

@@ -9,17 +9,23 @@ import tempfile
 import threading
 import time
 import unittest
+import zipfile
 from unittest import mock
 
 from renpy_capture import sdk
 
 
-def fake_sdk(version):
-    """A tar.bz2 shaped like an SDK: renpy-<version>-sdk/renpy.sh and one more file."""
+def fake_sdk(version, kind='tar.bz2'):
+    """A package shaped like an SDK (a .tar.bz2 or a .zip): renpy-<version>-sdk/renpy.sh and one more file."""
+    files = ((f'renpy-{version}-sdk/renpy.sh', b'#!/bin/sh\n'), (f'renpy-{version}-sdk/renpy/__init__.py', b''))
     buf = io.BytesIO()
+    if kind == 'zip':
+        with zipfile.ZipFile(buf, 'w') as z:
+            for name, data in files:
+                z.writestr(name, data)
+        return buf.getvalue()
     with tarfile.open(fileobj=buf, mode='w:bz2') as t:
-        for name, data in ((f'renpy-{version}-sdk/renpy.sh', b'#!/bin/sh\n'),
-                           (f'renpy-{version}-sdk/renpy/__init__.py', b'')):
+        for name, data in files:
             info = tarfile.TarInfo(name)
             info.size = len(data)
             info.mode = 0o755
@@ -28,9 +34,12 @@ def fake_sdk(version):
 
 
 class SdkTest(unittest.TestCase):
+    windows = sdk.WINDOWS                           # the package of this system; WindowsSdkTest: the .zip anywhere
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.tar = fake_sdk('9.9.9')
+        self.name = 'renpy-9.9.9-sdk.zip' if self.windows else 'renpy-9.9.9-sdk.tar.bz2'
+        self.tar = fake_sdk('9.9.9', 'zip' if self.windows else 'tar.bz2')
         self.downloads = []
 
         def urlretrieve(url, path):
@@ -42,10 +51,13 @@ class SdkTest(unittest.TestCase):
                     f.flush()
                     time.sleep(0.002)
 
-        sums = f'{hashlib.sha256(self.tar).hexdigest()}  renpy-9.9.9-sdk.tar.bz2\n'.encode()
+        def urlopen(url):                           # read when the download is done: the sum of what it holds
+            return io.BytesIO(f'{hashlib.sha256(self.tar).hexdigest()}  {self.name}\n'.encode())
+
         self.patches = [mock.patch.dict(os.environ, {'RENPY_CAPTURE_SDK': self.tmp.name}),
+                        mock.patch.object(sdk, 'WINDOWS', self.windows),
                         mock.patch.object(sdk.urllib.request, 'urlretrieve', urlretrieve),
-                        mock.patch.object(sdk.urllib.request, 'urlopen', lambda url: io.BytesIO(sums))]
+                        mock.patch.object(sdk.urllib.request, 'urlopen', urlopen)]
         for p in self.patches:
             p.start()
         self.d = os.path.join(self.tmp.name, 'renpy-9.9.9-sdk')
@@ -74,7 +86,8 @@ class SdkTest(unittest.TestCase):
         self.assertEqual(got, [self.d] * 4)
         self.assertTrue(os.path.isfile(os.path.join(self.d, 'renpy.sh')))
         self.assertEqual(sorted(f for f in os.listdir(self.tmp.name) if not f.endswith('.lock')),
-                         ['renpy-9.9.9-sdk', 'renpy-9.9.9-sdk.tar.bz2'])
+                         ['renpy-9.9.9-sdk', self.name])
+        self.assertTrue(self.downloads[0].endswith('/9.9.9/' + self.name))
 
     def test_a_folder_without_renpy_sh_is_unpacked_again(self):
         os.makedirs(os.path.join(self.d, 'lib'))    # what a cut-off unpack used to leave
@@ -83,8 +96,13 @@ class SdkTest(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.d, 'lib')))
 
     def test_a_download_that_does_not_match_is_removed(self):
+        good = self.tar
         self.tar = self.tar[:-8] + b'\0' * 8        # the checksums still describe the good file
-        with self.assertRaises(SystemExit):
+
+        def urlopen(url):
+            return io.BytesIO(f'{hashlib.sha256(good).hexdigest()}  {self.name}\n'.encode())
+
+        with mock.patch.object(sdk.urllib.request, 'urlopen', urlopen), self.assertRaises(SystemExit):
             sdk.ensure('9.9.9')
         self.assertEqual([f for f in os.listdir(self.tmp.name) if not f.endswith('.lock')], [])
 
@@ -92,6 +110,37 @@ class SdkTest(unittest.TestCase):
         sdk.ensure('9.9.9')
         sdk.ensure('9.9.9')
         self.assertEqual(len(self.downloads), 1)
+
+
+class WindowsSdkTest(SdkTest):
+    """Windows takes the .zip: the same files as the .tar.bz2, unpacked without bzip2."""
+    windows = True
+
+    def test_the_cache_is_in_local_app_data(self):
+        with mock.patch.dict(os.environ, {'LOCALAPPDATA': self.tmp.name}), mock.patch.dict(os.environ):
+            for k in ('RENPY_CAPTURE_SDK', 'XDG_CACHE_HOME'):
+                os.environ.pop(k, None)
+            self.assertEqual(sdk.cache_root(), os.path.join(self.tmp.name, 'renpy-capture', 'sdk'))
+            self.assertEqual(sdk.tools_root(), os.path.join(self.tmp.name, 'renpy-capture', 'tools'))
+
+
+class LockTest(unittest.TestCase):
+    """The lock of _once is the system's own (flock, or msvcrt.locking on Windows): it holds across processes."""
+
+    def test_one_process_at_a_time(self):
+        import subprocess
+        import sys
+        with tempfile.TemporaryDirectory() as tmp:
+            script = ('import sys, time; from renpy_capture import sdk; '
+                      'sdk._once(sys.argv[1], ".x.lock", lambda: False, '
+                      'lambda: (open(sys.argv[2], "a").write("in "), time.sleep(0.3), open(sys.argv[2], "a").write("out ")))')
+            trace = os.path.join(tmp, 'trace')
+            here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            ps = [subprocess.Popen([sys.executable, '-c', script, tmp, trace], cwd=here) for _ in range(3)]
+            for p in ps:
+                self.assertEqual(p.wait(30), 0)
+            with open(trace) as f:
+                self.assertEqual(f.read().split(), ['in', 'out'] * 3)
 
 
 if __name__ == '__main__':
