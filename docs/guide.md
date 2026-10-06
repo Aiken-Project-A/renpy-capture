@@ -106,11 +106,9 @@ Ubuntu, "tcl/tk and IDLE" in the installer of Python on Windows.
   folder that already holds the capture of *another* game is refused (that would mix two). A folder with other files in
   it is asked about first; one on another drive than the game is said to mean copies instead of links (see
   [On Windows](#on-windows)). Documents is not used when OneDrive keeps it in sync (the launch folder links every file
-  of
-  the game, and OneDrive would upload them all): the home folder is.
+  of the game, and OneDrive would upload them all): the home folder is.
 - **While it runs.** The window starts `renpy-capture capture … --progress-json` as a program of its own and words what
-  it
-  reads, refreshed every second: the engine being downloaded the first time (with its size), unpacked, then the
+  it reads, refreshed every second: the engine being downloaded the first time (with its size), unpacked, then the
   branches done out of those found so far, the lines captured, the branch under way, and the time. What the command
   prints goes to the pane at the bottom (selectable, copyable) and to `renpy-capture.log` in the work folder, which
   every run adds to (*Open the log*).
@@ -135,11 +133,11 @@ Ubuntu, "tcl/tk and IDLE" in the installer of Python on Windows.
 
 ## The Windows build
 
-`renpy-capture-<version>-windows-x64.zip`, attached to every [release](https://github.com/Aiken-Project-A/renpy-capture/releases/latest):
-unpack it (right-click, *Extract All*; it does not run from inside the zip) and double-click `renpy-capture-gui.exe`.
-Python, Tk and Pillow are inside; nothing is installed. What it keeps: the engines it downloads
-(`%LOCALAPPDATA%\renpy-capture\sdk`), the choices of the window (`%APPDATA%\renpy-capture`) and the work folders you
-choose.
+`renpy-capture-<version>-windows-x64.zip`, attached to every
+[release](https://github.com/Aiken-Project-A/renpy-capture/releases/latest): unpack it (right-click, *Extract All*; it
+does not run from inside the zip) and double-click `renpy-capture-gui.exe`. Python, Tk and Pillow are inside; nothing
+is installed. What it keeps: the engines it downloads (`%LOCALAPPDATA%\renpy-capture\sdk`), the choices of the window
+(`%APPDATA%\renpy-capture`) and the work folders you choose.
 
 | In the folder `renpy-capture` | |
 |---|---|
@@ -151,17 +149,16 @@ choose.
 - **SmartScreen.** The build is not signed (there is no certificate), so the first time Windows may show a blue
   *"Windows protected your PC"*. Click **More info**, then **Run anyway**; it asks once. A zip downloaded from the web
   carries a mark that makes Windows ask; `Unblock-File` or *Properties → Unblock* on the zip before unpacking it avoids
-  it.
-  An antivirus program may look at an unknown program for a moment, or flag it (programs made with PyInstaller are
+  it. An antivirus program may look at an unknown program for a moment, or flag it (programs made with PyInstaller are
   flagged more than they should be: the build is one folder rather than one file, which flags less). The source is
   public and the zip is built from it by GitHub.
-- **How it is made.** [PyInstaller](https://pyinstaller.org) (a tool of the build only, not a dependency of the package),
-  from `packaging/windows/renpy-capture.spec`, in the workflow `windows build`: one folder rather than one file (it
-  starts
-  faster, and antivirus programs flag it less). `capture.rpy` is data in it (`runner.py` finds it next to itself), the
-  pool of processes of `export` works in it (`freeze_support`), and the standard-library modules that the pinned unrpyc
-  imports are included, found by reading unrpyc when the build is made: a game that ships only compiled scripts needs no
-  Python either. The icon is drawn by `make_icon.py`, the zip packed by `make_zip.py`. To build it yourself, on Windows:
+- **How it is made.** [PyInstaller](https://pyinstaller.org) (a tool of the build only, not a dependency of the
+  package), from `packaging/windows/renpy-capture.spec`, in the workflow `windows build`: one folder rather than one
+  file (it starts faster, and antivirus programs flag it less). `capture.rpy` is data in it (`runner.py` finds it next
+  to itself), the pool of processes of `export` works in it (`freeze_support`), and the standard-library modules that
+  the pinned unrpyc imports are included, found by reading unrpyc when the build is made: a game that ships only
+  compiled scripts needs no Python either. The icon is drawn by `make_icon.py`, the zip packed by `make_zip.py`. To
+  build it yourself, on Windows:
 
   ```powershell
   pip install pyinstaller==6.22.3 .
@@ -170,12 +167,11 @@ choose.
   ```
 - **How it is tried.** On every pull request the workflow builds the zip (an artifact of the run) and
   `packaging/windows/check-build.ps1` tries it on a clean windows-latest the way a person would: the zip is unpacked
-  into
-  a folder with spaces and non-English letters, `--version` is timed, the window is started and closed, The Question is
-  captured with `renpy-capture.exe` and compared with the capture made on Linux, the progress a program can read is
-  checked, a game with only compiled scripts is read by unrpyc inside the program, and the window captures The Question
-  through the command that stands beside it. What it measures (the size of the build, the start, the capture) is in the
-  summary of the run.
+  into a folder with spaces and non-English letters, `--version` is timed, the window is started and closed, The
+  Question is captured with `renpy-capture.exe` and compared with the capture made on Linux, the progress a program
+  can read is checked, a game with only compiled scripts is read by unrpyc inside the program, and the window captures
+  The Question through the command that stands beside it. What it measures (the size of the build, the start, the
+  capture) is in the summary of the run.
 - **A release.** Publishing a release builds, tries and attaches the zip to it, once its version is the tag's (the
   workflow can also be run by hand with a tag, for a release made before it existed).
 
@@ -264,8 +260,7 @@ renpy-capture capture ~/Games/MyGame work/ --progress-json 2> work.log | head -3
 ```
 
 The exit code is 0 when the capture ended, and not when the command stopped (an `error` event came before). A capture
-told
-to stop with SIGTERM ends the way it does on Ctrl+C. An event a program does not know is to be skipped.
+told to stop with SIGTERM ends the way it does on Ctrl+C. An event a program does not know is to be skipped.
 
 ## How it works
 
@@ -379,11 +374,10 @@ RENPY_CAPTURE_IT=1 python -m unittest tests.test_gui_window       # the window o
 
 The window's tests need Tk and a screen (they are skipped without one; on Linux, `xvfb-run -a python -m unittest …`).
 `RENPY_CAPTURE_GUI_SHOT=window.png` saves a picture of the window when The Question has been captured through it (what
-the README shows). A build is tried with `packaging/windows/check-build.ps1` (see [The Windows
-build](#the-windows-build));
-`RENPY_CAPTURE_GUI_AUTORUN=1` makes the window press *Capture* by itself and close with an exit code (0: done, 1:
-stopped
-or failed, 2: nothing to capture), which is how that script has the window run a capture on a machine nobody sits at.
+the README shows). A build is tried with `packaging/windows/check-build.ps1` (see
+[The Windows build](#the-windows-build)); `RENPY_CAPTURE_GUI_AUTORUN=1` makes the window press *Capture* by itself and
+close with an exit code (0: done, 1: stopped or failed, 2: nothing to capture), which is how that script has the window
+run a capture on a machine nobody sits at.
 
 On every pull request GitHub Actions runs the unit tests on Python 3.9 to 3.14 and on Windows, the end-to-end tests
 (The Question and the Torture Test) on Ren'Py 8.5.3, 8.3.2 and 7.8.7 under Xvfb on Linux and on 8.3.2 and 7.8.7 on
