@@ -49,7 +49,10 @@ CONFIG = {
         # own timer to resolve it, exactly as it would while a real player deliberated. wait_max only answers a menu
         # whose timer never comes; it is large here, so the test sees the game lead on by itself.
         {'id': 'timeout_demo', 'label': 'start', 'choices': [1], 'wait_menus': '^Quick,', 'wait_max': 30},
+        # the dice mini-game is stubbed as a win for every job (below); this one loses it
+        {'id': 'dice lost', 'label': 'customscreen_scene', 'stub_screens': {'dice_game': 'lose'}},
     ],
+    'stub_screens': {'dice_game': 'win'},
     'ui': '^hud$',
     'hide_tags': '^caption_card$',
     'settle': 0.3,
@@ -238,6 +241,16 @@ class TortureTest(unittest.TestCase):
     def signpost_line(self):
         lines = read_text(os.path.join(GAME_SRC, 'game', 'script.rpy')).splitlines()
         return lines.index('    call screen signpost') + 1
+
+    def test_a_job_stubs_a_mini_game_its_own_way(self):
+        """stub_screens wins the dice game for every job, the job `dice lost` loses it: both outcomes are captured,
+        each in its own jobs."""
+        said = collections.defaultdict(set)
+        for r in self.records():
+            if r['ev'] == 'shot' and r.get('what') in ('The dice roll your way.', 'The dice roll against you.'):
+                said[r['what']].add(r['job'].split('~')[0])
+        self.assertEqual(dict(said), {'The dice roll your way.': {'start'},
+                                      'The dice roll against you.': {'dice lost'}})
 
     def test_a_search_path_beside_the_game(self):
         """The game puts notes/, a folder next to game/, on its search path: the engine runs on the launch folder and

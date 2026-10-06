@@ -28,6 +28,7 @@ expressions and match anywhere in the string (`re.search`) unless stated otherwi
 | `scene` | An image to show as the background before the label: for scenes that normally play over a hub or a map. |
 | `replay` | `true` for a label that is a gallery replay and ends itself with `renpy.end_replay()`. |
 | `prelude`, `camera` | Override the config keys of the same name for this job. |
+| `stub_screens` | `{screen: value}` on top of the config's: another outcome of a stubbed mini-game for this job (the loss when the config wins it), or a screen stubbed for this job only. |
 | `loop_limit` | Overrides the config key. |
 | `ui_timers` | `true`: interface screens receive events, so their timers run (to capture the "too late" outcome of a timed mini-game). A regex: only the matching screens. |
 | `wait_menus` | A regex on menu captions: on such a menu, do not answer and wait until the game's timer leads on by itself. |
@@ -81,7 +82,7 @@ expressions and match anywhere in the string (`re.search`) unless stated otherwi
 | key | meaning |
 |---|---|
 | `prefer` | A regex on menu captions: without a planned choice, take the first option that matches (e.g. "Skip the mini-game"). |
-| `stub_screens` | `{screen: value}`: the screen returns `value` at once, as if the mini-game was won. |
+| `stub_screens` | `{screen: value}`: the screen returns `value` at once, as if the mini-game was won. A job can give other values (see Jobs). |
 | `persistent` | `{field: value}` set in the persistent data at start (tutorials seen, options unlocked). Every launch starts from the default persistent data otherwise. |
 | `language` | Capture a translation: the language as its folder `game/tl/<language>` is named (`"russian"`). The engine starts in that language; a translated line keeps the `file` and `line` of the line it translates, so `compare` and `gaps` work across languages. The `--language` option overrides it. |
 

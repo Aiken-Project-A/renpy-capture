@@ -94,7 +94,7 @@ init python:
                      pause_delay=None, lines={}, seen=set(), ui=None, skip=[], drop=None, stop=None, settle=1.0,
                      settle_max=1.0, max_steps=3000, loop_limit=40, t0=0.0, where={}, last_key=None,
                      last_frame=None, scene=None, prefer=None, menus_seen={}, cur_node=None, node_t0=0.0,
-                     stubs=set(), timers=None, wait=None, wait_node=None, wait_t0=0.0, nulls=set(),
+                     stubs=set(), stub_values={}, timers=None, wait=None, wait_node=None, wait_t0=0.0, nulls=set(),
                      stop_labels=None, trans=False, fx_screens=None, fx_files=None, hidden_text={}, dt=0.0,
                      vclock=0.0, cap_anim=False, cap_peak=False, vis_prev=None, hidden_ids=set(), persist0=None,
                      prof=None, raw_seen={}, fast=False, label_lines=None, text=False, dirty=False, own_file=None,
@@ -894,10 +894,20 @@ init python:
 
     config.exception_handler = _rc_exception
 
-    def _rc_stub(value):
+    def _rc_stub(name):
         def screen(**kwargs):
-            renpy.ui.timer(0.05, action=Return(value))
+            renpy.ui.timer(0.05, action=Return(_rc_P.stub_values.get(name)))
         return screen
+
+    def _rc_put_screen(name, entries):
+        """The screen `name` becomes ``entries`` ({(name, variant): screen}): a stub, or the game's own again."""
+        s = renpy.display.screen
+        for k in [k for k in s.screens if k[0] == name]:
+            del s.screens[k]
+            s.screens_by_name[name].pop(k[1], None)
+        for k, v in entries.items():
+            s.screens[k] = v
+            s.screens_by_name.setdefault(k[0], {})[k[1]] = v
 
     def _rc_run_all():
         P = _rc_P
@@ -919,9 +929,13 @@ init python:
         P.prefer = _rc_rx(cfg.get("prefer"))
         P.fx_screens = _rc_rx(cfg.get("fx_screens"))   # what of the hidden things to log as the line's effects
         P.fx_files = _rc_rx(cfg.get("fx_files"))
-        for name, value in cfg.get("stub_screens", {}).items():   # mini-games: the screen returns "success" at once
-            renpy.display.screen.define_screen(name, _rc_stub(value), modal="True")
-            P.stubs.add(name)
+        # mini-games: the screen returns "success" at once (stub_screens); a job may give other values (a loss), or
+        # stub a screen of its own, which is the game's own again in the other jobs
+        P.stub_game, P.stub_def = {}, {}
+        for name in sorted(set(cfg.get("stub_screens", {})).union(*[j.get("stub_screens", {}) for j in cfg["jobs"]])):
+            P.stub_game[name] = dict((k, v) for k, v in renpy.display.screen.screens.items() if k[0] == name)
+            renpy.display.screen.define_screen(name, _rc_stub(name), modal="True")
+            P.stub_def[name] = dict((k, v) for k, v in renpy.display.screen.screens.items() if k[0] == name)
         import copy as _rc_copy                         # jobs of one launch see no traces of each other:
         if getattr(P, "set_timer", None) is not None:   # timers created before our replacement (PERIODIC, when the
             for _rc_ev in (renpy.display.core.PERIODIC, renpy.display.core.REDRAW, renpy.display.core.TIMEEVENT):
@@ -939,6 +953,11 @@ init python:
             P.job, P.seq, P.menu_i, P.lines, P.label, P.scene = job, 0, 0, {}, None, None
             P.where, P.last_key, P.last_frame, P.menus_seen, P.dirty, P.last_renders = {}, None, None, {}, False, []
             P.hidden_text = {}
+            P.stub_values = dict(cfg.get("stub_screens", {}))
+            P.stub_values.update(job.get("stub_screens", {}))
+            P.stubs = set(P.stub_values)
+            for _rc_sn in P.stub_def:
+                _rc_put_screen(_rc_sn, P.stub_def[_rc_sn] if _rc_sn in P.stubs else P.stub_game[_rc_sn])
             _rc_pd = vars(persistent)
             _rc_pd.clear()
             _rc_pd.update(_rc_copy.deepcopy(P.persist0))
