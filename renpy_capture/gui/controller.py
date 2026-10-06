@@ -517,6 +517,12 @@ class Run:
     def close(self):
         for t in self._threads:
             t.join(2)
+        if self.proc is not None and not any(t.is_alive() for t in self._threads):
+            for stream in (self.proc.stdout, self.proc.stderr):     # (a reader still waiting on a pipe that a
+                try:                                                # grandchild holds open would make this wait too)
+                    stream.close()
+                except (OSError, ValueError, AttributeError):
+                    pass
         if self.job is not None:
             self.job.close()
             self.job = None
