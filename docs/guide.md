@@ -375,10 +375,12 @@ RENPY_CAPTURE_IT=1 python -m unittest tests.test_gui_window       # the window o
 
 The window's tests need Tk and a screen (they are skipped without one; on Linux, `xvfb-run -a python -m unittest …`).
 `RENPY_CAPTURE_GUI_SHOT=window.png` saves a picture of the window when The Question has been captured through it (what
-the README shows). A build is tried with `packaging/windows/check-build.ps1` (see
-[The Windows build](#the-windows-build)); `RENPY_CAPTURE_GUI_AUTORUN=1` makes the window press *Capture* by itself and
-close with an exit code (0: done, 1: stopped or failed, 2: nothing to capture), which is how that script has the window
-run a capture on a machine nobody sits at.
+the README shows, with its title bar on Windows); `RENPY_CAPTURE_GUI_SHOT_BASE=C:\` puts the game and the work folders
+that the picture shows into `C:\Games` and `C:\renpy-capture` instead of a temporary folder, so that the paths in it
+are short. A build is tried with `packaging/windows/check-build.ps1` (see [The Windows build](#the-windows-build));
+`RENPY_CAPTURE_GUI_AUTORUN=1` makes the window press *Capture* by itself and close with an exit code (0: done, 1:
+stopped or failed, 2: nothing to capture), which is how that script has the window run a capture on a machine nobody
+sits at.
 
 On every pull request GitHub Actions runs the unit tests on Python 3.9 to 3.14 and on Windows, the end-to-end tests
 (The Question and the Torture Test) on Ren'Py 8.5.3, 8.3.2 and 7.8.7 under Xvfb on Linux and on 8.3.2 and 7.8.7 on
