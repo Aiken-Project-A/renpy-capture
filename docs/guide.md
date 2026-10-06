@@ -176,6 +176,26 @@ Most visual novels need nothing but the starter config. Games with more machiner
 (`stop_labels`), effects can be kept out of the picture (`null_images`, `still_transforms`, `hide_tags`), and branches
 chosen by flags set much earlier can be captured with exact jobs (`gaps` tells which ones).
 
+A hub, a map or an imagemap the script calls as a screen (`call screen`) needs nothing: its buttons that lead on
+(`Return`, `Jump`, `Call`) are the options of a menu, each one becomes a job of its own, and a job ends when it comes
+back to the hub. What the Ren'Py Tutorial (the SDK's larger game) taught:
+
+- **Capture a game where it lives.** A game may take files from beside its own folder (the Tutorial adds
+  `../launcher/game/fonts` to its search path): renpy-capture looks for them next to the game, so point it to the
+  game in place, not to a copy taken out of its surroundings.
+- **A mini-game with nothing to press** (the Tutorial's pong, a creator-defined displayable) is not a menu: on its own
+  the capture ends it and the game goes on as after a win or a loss, whichever the script takes for `True`. The
+  script tells what the screen returns (`if _return == "eileen":`); `stub_screens` returns it, and a job with
+  `stub_screens` of its own takes the other outcome:
+
+  ```json
+  {"jobs": [{"id": "start", "label": "start"},
+            {"id": "pong lost", "label": "demo_minigame", "stub_screens": {"pong": "eileen"}}],
+   "ui": ".*", "settle": 0.3, "settle_max": 1.2, "max_steps": 3000, "loop_limit": 40}
+  ```
+
+  With this config the Tutorial is captured whole: 39 jobs, 1,652 lines, nothing left unreached.
+
 ## When something is off
 
 - **The capture is very slow.** `report` warns about it. If nearly every capture was taken "while something was
@@ -212,9 +232,10 @@ chosen by flags set much earlier can be captured with exact jobs (`gaps` tells w
 |---|---|
 | **System** | Gentoo Linux, kernel 7.2 · KDE Plasma 6.7 (KWin 6.7.5) · Python 3.14 |
 | **Graphics** | NVIDIA GeForce RTX 2060 (driver 615.71) · AMD Radeon Vega (Mesa 26.2, radeonsi) · software rendering (Xvfb 21.1, Mesa llvmpipe) |
-| **Ren'Py** | 7.8.7, 8.2.3, 8.3.2 |
+| **Ren'Py** | 7.8.7, 8.2.3, 8.3.2, 8.5.3 |
 | **The sample game** | The Question: 3 jobs, 128 lines in seconds. The same pictures, byte for byte, on Ren'Py 7.8 and 8.3; the same scene at every line on all three graphics stacks. |
 | **Windows** | GitHub Actions windows-latest: Windows Server 2025, Python 3.12, no GPU (Microsoft Hyper-V Video): the engine falls back from OpenGL to ANGLE on the Microsoft Basic Render Driver (Direct3D 11 in software). The Question on Ren'Py 8.3.2 and 7.8.7: the same scene as on Linux at every one of its 128 lines, and the same frames, byte for byte, on the three displays and from run to run, in about the time the jobs take on Linux (16 s against 17 s for 8.3.2). The Torture Test passes too. Not yet on a Windows machine with a GPU. |
+| **The Tutorial** | The SDK's larger game, under Xvfb (software rendering, 4 cores): 39 jobs, 1,652 lines, 104 distinct pictures in about 3 minutes, on Ren'Py 7.8.7, 8.3.2 and 8.5.3; nothing left unreached, no warning, a second run the same to the byte. Each SDK ships its own Tutorial, so their captures differ where the games do. |
 | **A large commercial game** | 44 jobs, 21,945 lines in about 8 minutes on four engines (RTX 2060). The same pictures, byte for byte, as a reference capture, and the same 591 event pictures. |
 
 ## Tests
@@ -223,9 +244,11 @@ chosen by flags set much earlier can be captured with exact jobs (`gaps` tells w
 python -m unittest discover -s tests -t .                        # unit tests: no engine, no network
 RENPY_CAPTURE_IT=1 python -m unittest tests.test_the_question    # end to end on The Question (downloads the SDK once)
 RENPY_CAPTURE_IT=1 python -m unittest tests.test_torture         # end to end on the Torture Test (tests/games)
+RENPY_CAPTURE_IT_TUTORIAL=1 python -m unittest tests.test_tutorial  # the SDK's Tutorial, a few minutes
 ```
 
-On every pull request GitHub Actions runs the unit tests on Python 3.9 to 3.14 and on Windows, and the end-to-end tests
-(The Question and the Torture Test) on Ren'Py 8.3.2 and 7.8.7 under Xvfb on Linux and on windows-latest. The Windows
+On every pull request GitHub Actions runs the unit tests on Python 3.9 to 3.14 and on Windows, the end-to-end tests
+(The Question and the Torture Test) on Ren'Py 8.5.3, 8.3.2 and 7.8.7 under Xvfb on Linux and on 8.3.2 and 7.8.7 on
+windows-latest, and the Tutorial on Ren'Py 8.5.3 under Xvfb. The Windows
 job compares its capture of The Question with the one made on Linux, line by line (`RENPY_CAPTURE_IT_REFERENCE`), and
 its three displays with each other, to the byte.

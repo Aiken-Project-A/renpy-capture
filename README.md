@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-2b6cb0)](https://github.com/Aiken-Project-A/renpy-capture/blob/main/LICENSE)
 ![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-2b6cb0)
 ![Linux | Windows](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-2b6cb0)
-![Ren'Py 7.8 | 8.2 | 8.3](https://img.shields.io/badge/Ren%27Py-7.8%20%7C%208.2%20%7C%208.3-2b6cb0)
+![Ren'Py 7.8 | 8.2 | 8.3 | 8.5](https://img.shields.io/badge/Ren%27Py-7.8%20%7C%208.2%20%7C%208.3%20%7C%208.5-2b6cb0)
 
 **English** · [Русский](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/readme/ru.md) · [Українська](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/readme/uk.md) · [简体中文](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/readme/zh-CN.md) ·
 [日本語](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/readme/ja.md) · [한국어](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/readme/ko.md) · [Español](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/readme/es.md) · [Français](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/readme/fr.md)
