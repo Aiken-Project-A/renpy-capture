@@ -16,9 +16,14 @@ import tempfile
 import urllib.request
 import zipfile
 
+from . import events
+
 WINDOWS = os.name == 'nt'
 
 DOWNLOADS = 'https://www.renpy.org/dl/'
+# The versions of Ren'Py this tool has been tried with, newest first: what a window offers when a game does not tell
+# its own. Any other version renpy.org has can still be given as --renpy-version.
+VERSIONS = ('8.5.3', '8.3.2', '8.2.3', '7.8.7')
 # unrpyc (https://github.com/CensoredUsername/unrpyc, MIT): its release, and the sha256 of its Python files and license
 # (content_hash), which stays the same however GitHub packs the archive
 UNRPYC = ('2.0.4', '06d991966ec7e1f6470b0b02e2c4c9360c5fcb18be62b3b9ce049da9e03f0bbf')
@@ -71,10 +76,31 @@ def _once(root, lock_name, ready, make):
             _unlock(lock)
 
 
-def _unpack(archive, dest):
+def _download(url, dest, what, version):
+    """``urlretrieve`` that tells how many bytes of how many have come, a few times a second."""
+    tick = events.Every(0.25)
+
+    def hook(blocks, size, total):
+        done = max(blocks * size, 0)
+        if total > 0:
+            done = min(done, total)
+        if tick(force=total > 0 and done >= total):
+            events.emit('fetch', what=what, version=version, step='download', done=done,
+                        total=total if total > 0 else None)
+
+    urllib.request.urlretrieve(url, dest, hook)
+
+
+def _unpack(archive, dest, report=None):
+    """Unpack into ``dest``; ``report(files done, files in all)`` is told how far a .zip is (a few times a second)."""
     if archive.endswith('.zip'):
+        tick = events.Every(0.25)
         with zipfile.ZipFile(archive) as z:         # zipfile drops absolute paths and '..' by itself
-            z.extractall(dest)
+            members = z.infolist()
+            for n, member in enumerate(members, 1):
+                z.extract(member, dest)
+                if report and tick(force=n == len(members)):
+                    report(n, len(members))
         return
     with tarfile.open(archive) as t:
         if hasattr(tarfile, 'tar_filter'):          # Python 3.12+ (and the security releases before it): refuse
@@ -122,12 +148,13 @@ def fetch(version, root, d):
     try:
         if not os.path.exists(tb):
             print(f'downloading {base}{name}', flush=True)
-            urllib.request.urlretrieve(base + name, tb + '.part')
+            _download(base + name, tb + '.part', 'sdk', version)
             os.replace(tb + '.part', tb)
         with urllib.request.urlopen(base + 'checksums.txt') as r:
             sums = r.read().decode()
     except OSError as e:
         raise SystemExit(f"cannot download the Ren'Py {version} SDK from {base}: {e}")
+    events.emit('fetch', what='sdk', version=version, step='verify')
     want = next((line.split()[0] for line in sums.splitlines()
                  if line.endswith(' ' + name) and len(line.split()[0]) == 64), None)
     if want is None:
@@ -141,9 +168,11 @@ def fetch(version, root, d):
         raise SystemExit(f'sha256 of {name} does not match the official one ({h.hexdigest()} != {want}); '
                          'the download was removed, try again')
     print(f'unpacking {name}', flush=True)
+    events.emit('fetch', what='sdk', version=version, step='unpack', done=0, total=None)
     tmp = tempfile.mkdtemp(prefix=f'.renpy-{version}-sdk-', dir=root)
     try:
-        _unpack(tb, tmp)
+        _unpack(tb, tmp, lambda n, of: events.emit('fetch', what='sdk', version=version, step='unpack', done=n,
+                                                   total=of))
         got = os.path.join(tmp, os.path.basename(d))
         if not os.path.isfile(os.path.join(got, 'renpy.sh')):
             raise SystemExit(f'{name} unpacked, but {os.path.basename(d)}/renpy.sh is missing in it')
@@ -152,6 +181,7 @@ def fetch(version, root, d):
         os.rename(got, d)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+    events.emit('fetch', what='sdk', version=version, step='done')
 
 
 def tools_root():
@@ -195,7 +225,7 @@ def fetch_unrpyc(version, want, root, d):
         tb = os.path.join(tmp, 'unrpyc.tar.gz')
         print(f'downloading unrpyc {version} (reads compiled scripts): {url}', flush=True)
         try:
-            urllib.request.urlretrieve(url, tb)
+            _download(url, tb, 'unrpyc', version)
         except OSError as e:
             raise ImportError(f'cannot download unrpyc from {url}: {e}; or point RENPY_CAPTURE_UNRPYC to a copy of '
                               'it (https://github.com/CensoredUsername/unrpyc)') from e
@@ -210,3 +240,4 @@ def fetch_unrpyc(version, want, root, d):
         os.rename(got, d)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+    events.emit('fetch', what='unrpyc', version=version, step='done')
