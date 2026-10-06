@@ -235,6 +235,7 @@ GAP_STMT = re.compile(r'^\s*(play|queue|stop|voice|sound|music|show|scene|hide|w
 GAP_SHOW = re.compile(r'^\s*(scene|show)\s+(?!screen\b|layer\b)(\S.*?)\s*:?\s*$')
 GAP_COND = re.compile(r'^\s*(if|elif)\s+(.+?)\s*:\s*$')
 GAP_ELSE = re.compile(r'^\s*else\s*:\s*$')
+GAP_DECL = re.compile(r'^(init|python|image|define|default|screen|transform|style|translate|layeredimage|testcase)\b')
 
 
 def gaps(game, cfg_path, out, show=True):
@@ -335,9 +336,11 @@ def gaps(game, cfg_path, out, show=True):
             for k in range(i + 1, min(len(lines), i + 400) + 1):
                 lk = lines[k - 1]
                 if GAP_LABEL.match(lk) or (lk.strip() and not lk.lstrip().startswith('#')
-                                           and len(lk) - len(lk.lstrip()) < ind):
+                                           and len(lk) - len(lk.lstrip()) < ind
+                                           and (lk[0].isspace() or GAP_DECL.match(lk))):
                     break                           # the block of the line ended (an if/menu branch): a capture below
-                end = k                             # belongs to the code shared by all branches
+                end = k                             # belongs to the code shared by all branches; a statement of its
+                                                    # own at the top level (not a declaration) is run in the flow
                 if GAP_SAY.match(lines[k - 1]) and not GAP_STMT.match(lines[k - 1]) and '(multiple=' not in lines[k - 1]:
                     break
             if any(n in seen.get(f, ()) for n in range(i, end + 1)):

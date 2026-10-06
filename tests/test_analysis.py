@@ -61,6 +61,30 @@ class GapsScopeTest(unittest.TestCase):
         self.assertFalse(os.path.exists(marker))
 
 
+class GapsFlowTest(unittest.TestCase):
+    """Which captures count for a scene line: the lines the game goes through after it."""
+
+    def test_the_flow_goes_on_into_a_statement_at_the_top_level(self):
+        """The Ren'Py Tutorial ends a label's body with a show and goes on into a statement of its own at the top
+        level (`example nvl3 hide:`), whose block holds the next menu: the menu's capture counts for the show. A
+        declaration at the top level (a screen, an image) is not run in the flow: a show before it is still a gap."""
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, 'game'))
+            os.makedirs(os.path.join(tmp, 'out'))
+            with open(os.path.join(tmp, 'game', 'script.rpy'), 'w') as f:
+                f.write('label start:\n    "one"\n    show bg flow\n\nexample nvl3 hide:\n    menu:\n'
+                        '        "Yes":\n            pass\n\nlabel other:\n    "two"\n    show bg decl\n\n'
+                        'screen s():\n    text "x"\n    "three"\n')
+            with open(os.path.join(tmp, 'out', 'log.jsonl'), 'w') as f:
+                for line in (2, 6, 11, 16):
+                    f.write(json.dumps(dict(shot(line, line), file='game/script.rpy')) + '\n')
+            cfg = os.path.join(tmp, 'cfg.json')
+            with open(cfg, 'w') as f:
+                json.dump({}, f)
+            found = analysis.gaps(os.path.join(tmp, 'game'), cfg, os.path.join(tmp, 'out'), show=False)
+        self.assertEqual({spec for xs in found.values() for _, spec in xs}, {'bg decl'})
+
+
 class CompareTest(unittest.TestCase):
     def out(self, recs):
         d = tempfile.TemporaryDirectory()
