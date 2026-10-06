@@ -216,6 +216,27 @@ class ReportTest(unittest.TestCase):
                             {'ev': 'end', 'job': 'j', 'why': 'end', 'seconds': 1.0}])
         self.assertNotIn('wait_max', text)
 
+    def totals(self, recs):
+        with tempfile.TemporaryDirectory() as out, contextlib.redirect_stdout(io.StringIO()):
+            with open(os.path.join(out, 'log.jsonl'), 'w', encoding='utf-8') as f:
+                f.writelines(json.dumps(r) + '\n' for r in recs)
+            return analysis.report(out, brief=True)
+
+    def test_the_warnings_come_as_data_for_a_program_that_words_them_itself(self):
+        waited = {'n': 1, 'options': ['Quick, left', 'Quick, right'], 'wait': True}
+        totals = self.totals([shot(1, 10), shot(2, 12, waited),
+                              shot(3, 12, {'n': 1, 'options': ['Quick, left', 'Quick, right'], 'pick': 0}),
+                              {'ev': 'end', 'job': 'j', 'why': 'end', 'seconds': 1.0}])
+        self.assertEqual(totals['warnings'], [{'kind': 'late', 'menus': 1}])
+
+    def test_an_overlay_that_never_stops_and_a_slow_engine_are_warnings_too(self):
+        moving = [dict(shot(n, 3), anim=True) for n in range(1, 31)]
+        totals = self.totals(moving + [{'ev': 'end', 'job': 'j', 'why': 'end', 'seconds': 90.0}])
+        self.assertEqual(totals['warnings'], [{'kind': 'moving', 'moving': 30, 'steps': 30},
+                                              {'kind': 'slow', 'seconds': 3.0}])
+        self.assertEqual(self.totals([shot(1, 3), {'ev': 'end', 'job': 'j', 'why': 'end', 'seconds': 1.0}])['warnings'],
+                         [])
+
 
 if __name__ == '__main__':
     unittest.main()

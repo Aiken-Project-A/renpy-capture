@@ -110,6 +110,17 @@ class ExploreTest(unittest.TestCase):
         self.assertEqual([j['id'] for j in runner.read_json(self.cfg)['jobs']], ['start', 'start~1', 'start~2'])
         self.assertEqual(self.rounds, 2)                # one round to find the menu, one to take its options
 
+    def test_an_engine_that_never_wrote_a_line_ends_the_capture_in_one_line(self):
+        """No log at all (the engine or the screen did not start): a sentence that points to what they said, not a
+        traceback for FileNotFoundError."""
+        self.config()
+        with mock.patch.object(runner, 'run', lambda *a, **kw: None), contextlib.redirect_stdout(io.StringIO()), \
+                self.assertRaises(SystemExit) as cm:
+            runner.explore(self.tmp.name, self.cfg, self.out)
+        self.assertIn('nothing was captured', str(cm.exception.code))
+        self.assertIn('renpy.log', str(cm.exception.code))
+        self.assertIn('display.log', str(cm.exception.code))
+
     def test_branches_over_the_limit_are_counted_once(self):
         """The branch that did not fit is met again in every round; it is still one branch left out."""
         self.config()
@@ -202,6 +213,36 @@ class ProgressTest(unittest.TestCase):
         with open(main, 'a') as f:
             f.write('t", "job": "a"}\n')
         self.assertIn('2 lines,', self.line(bar))
+
+    def test_the_numbers_are_what_the_line_says(self):
+        bar = runner.Progress(self.out, 3)
+        main = os.path.join(self.out, 'log.jsonl')
+        self.assertEqual(bar.numbers(), {'jobs_done': 0, 'jobs_total': 3, 'lines': 0, 'now': None, 'engines': 0})
+        self.log(main, {'ev': 'start', 'job': 'a'}, {'ev': 'shot', 'job': 'a'})
+        self.assertEqual(bar.numbers(), {'jobs_done': 0, 'jobs_total': 3, 'lines': 1, 'now': 'a', 'engines': 1})
+        self.log(main, {'ev': 'end', 'job': 'a'})
+        self.log(os.path.join(self.out, 'done.txt'), 'a', 'b', 'c', 'd')        # more done than jobs: never over 100%
+        self.assertEqual(bar.numbers()['jobs_done'], 3)
+
+    def test_a_program_that_reads_the_progress_gets_it_at_every_look(self):
+        """Every look is an event for a window; a person reading a log still gets a line only every half minute."""
+        got = []
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            bar = runner.Progress(self.out, 2)
+            self.log(os.path.join(self.out, 'log.jsonl'), {'ev': 'start', 'job': 'a'}, {'ev': 'shot', 'job': 'a'})
+            with mock.patch.object(runner.events, 'active', lambda: True), \
+                    mock.patch.object(runner.events, 'emit', lambda event, **kw: got.append((event, kw))):
+                bar.update()
+                bar.update()
+        self.assertEqual(out.getvalue(), '')
+        self.assertEqual(got, [('progress', {'jobs_done': 0, 'jobs_total': 2, 'lines': 1, 'now': 'a',
+                                              'engines': 1})] * 2)
+
+    def test_without_a_program_that_reads_it_nothing_is_looked_at_between_the_lines(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            bar = runner.Progress(self.out, 2)
+            with mock.patch.object(bar, 'numbers', side_effect=AssertionError('read the logs')):
+                bar.update()
 
     def test_engines_at_work_and_a_batch_already_merged_is_not_counted_twice(self):
         bar = runner.Progress(self.out, 4)
