@@ -473,14 +473,18 @@ class Elsewhere(unittest.TestCase):
 
 
 def engines_of(folder):
-    """The processes whose command line names ``folder``: the engine of a capture, and what it started."""
+    """The processes whose command line names ``folder`` ("pid command line"): the capture, its engine, and what they
+    started. On Windows the question is asked by a program whose own command line names the folder: it leaves itself
+    out ($PID), or it would always find one."""
     if os.name == 'nt':
-        script = ("Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*" + folder.replace("'", "''")
-                  + "*' } | ForEach-Object { $_.ProcessId }")
+        script = ("Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -like '*"
+                  + folder.replace("'", "''") + "*' } | ForEach-Object { $_.ProcessId.ToString() + ' ' + "
+                  "$_.CommandLine }")
         out = subprocess.run(['powershell', '-NoProfile', '-Command', script], capture_output=True, text=True).stdout
     else:
-        out = subprocess.run(['pgrep', '-f', folder], capture_output=True, text=True).stdout
-    return [pid for pid in out.split() if pid.isdigit() and int(pid) != os.getpid()]
+        out = subprocess.run(['pgrep', '-af', folder], capture_output=True, text=True).stdout
+    lines = [line.strip() for line in out.splitlines() if line.strip()]
+    return [line for line in lines if line.split()[0].isdigit() and int(line.split()[0]) != os.getpid()]
 
 
 @unittest.skipUnless(os.environ.get('RENPY_CAPTURE_IT'), 'set RENPY_CAPTURE_IT=1 to run the end-to-end test')
@@ -502,6 +506,10 @@ class WindowEndToEnd(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp, ignore_errors=True)
+        try:
+            cls._tmp.cleanup()                              # (done already: this keeps the finalizer of the folder quiet)
+        except OSError:
+            pass
 
     def setUp(self):
         from renpy_capture.gui import app
