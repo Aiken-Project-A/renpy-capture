@@ -129,28 +129,32 @@ Group 'A game with only compiled scripts, read by unrpyc inside the program'
 if ($SkipCompiledScripts) {
     Write-Host 'skipped, as asked'
 } else {
-$bare = Join-Path $Work 'the_question_compiled'
-Copy-Item -Recurse $game $bare
-Get-ChildItem (Join-Path $bare 'game') -Recurse -Filter *.rpy | Remove-Item
-if (Get-ChildItem (Join-Path $bare 'game') -Recurse -Filter *.rpy) { Fail 'the copy still has sources' }
-$part = Join-Path $Work 'first branch only'                 # a capture of the first branch only: there is something to find
-New-Item -ItemType Directory -Path $part | Out-Null
-& $command init $game (Join-Path $part 'config.json')
-& $command setup $game (Join-Path $part 'run') --renpy-version $RenpyVersion
-& $command run (Join-Path $part 'run') (Join-Path $part 'config.json') (Join-Path $part 'out')
-$said = Join-Path $Work 'gaps-text.txt'
-$with = @(& $command gaps $game (Join-Path $part 'config.json') (Join-Path $part 'out'))[0]
-$without = @(& $command gaps $bare (Join-Path $part 'config.json') (Join-Path $part 'out') 2> $said)[0]
-Write-Host "with sources:    $with"
-Write-Host "compiled only:   $without"
-$count = 'not reached: (\d+) in (\d+) labels'
-$a, $b = [regex]::Match($with, $count), [regex]::Match($without, $count)
-if (-not $a.Success -or [int]$a.Groups[1].Value -lt 1) { Fail "the first branch alone should leave scenes unreached, it said: $with" }
-if (-not $b.Success) { Fail "the scenes of a game with only compiled scripts were not counted: $without" }
-if ($a.Groups[1].Value -ne $b.Groups[1].Value -or $a.Groups[2].Value -ne $b.Groups[2].Value) {
-    Fail 'unrpyc inside the program found other scenes unreached than the sources do'
-}
-if ((Test-Path $said) -and (Get-Content $said -Raw) -match 'not decompiled') { Fail "some scripts were not decompiled: $(Get-Content $said -Raw)" }
+    # The scenes no branch reached are looked for in the scripts of the game: its sources, or, for a game that ships only
+    # compiled scripts, what unrpyc reads of them (unrpyc is downloaded the first time and runs inside the program). The
+    # counts in the answer come out of the text of the scripts: the same from both, and not nothing. With the first
+    # branch alone captured, the scenes of the others are "captured elsewhere": there is something to count.
+    $bare = Join-Path $Work 'the_question_compiled'
+    Copy-Item -Recurse $game $bare
+    Get-ChildItem (Join-Path $bare 'game') -Recurse -Filter *.rpy | Remove-Item
+    if (Get-ChildItem (Join-Path $bare 'game') -Recurse -Filter *.rpy) { Fail 'the copy still has sources' }
+    if (-not (Get-ChildItem (Join-Path $bare 'game') -Recurse -Filter *.rpyc)) { Fail 'the copy has no compiled scripts' }
+    $part = Join-Path $Work 'first branch only'
+    New-Item -ItemType Directory -Path $part | Out-Null
+    & $command init $game (Join-Path $part 'config.json')
+    & $command setup $game (Join-Path $part 'run') --renpy-version $RenpyVersion
+    & $command run (Join-Path $part 'run') (Join-Path $part 'config.json') (Join-Path $part 'out')
+    $said = Join-Path $Work 'gaps-text.txt'
+    $config, $captured = (Join-Path $part 'config.json'), (Join-Path $part 'out')
+    $answer = 'scene/show lines not reached'
+    $with = @(& $command gaps $game $config $captured | Where-Object { $_ -like "$answer*" })
+    $without = @(& $command gaps $bare $config $captured 2> $said | Where-Object { $_ -like "$answer*" })
+    Write-Host "with sources:    $with"
+    Write-Host "compiled only:   $without"
+    if ($with.Count -ne 1 -or $without.Count -ne 1) { Fail "gaps did not answer once each: '$with' and '$without'" }
+    if ($with[0] -ne $without[0]) { Fail 'unrpyc inside the program read other scripts than the sources are' }
+    $elsewhere = [regex]::Match($with[0], 'captured elsewhere\D+(\d+)\)')
+    if (-not $elsewhere.Success -or [int]$elsewhere.Groups[1].Value -lt 1) { Fail "the scripts were read for nothing: $($with[0])" }
+    if ((Test-Path $said) -and (Get-Content $said -Raw) -match 'not decompiled') { Fail "some scripts were not decompiled: $(Get-Content $said -Raw)" }
 }
 EndGroup
 
