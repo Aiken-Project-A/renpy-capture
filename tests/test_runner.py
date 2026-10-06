@@ -62,6 +62,16 @@ class PrunTest(unittest.TestCase):
         self.assertEqual(sorted(done), ['j0', 'j1', 'j2'])   # batches j0+j1, j2, j3: only the last one stopped
 
 
+    def test_a_batch_merged_but_not_marked_done_is_not_in_the_log_twice(self):
+        os.makedirs(self.out)
+        with open(os.path.join(self.out, 'log.jsonl'), 'w') as f:          # the capture was killed between the two
+            f.write(json.dumps({'job': 'j0', 'ev': 'shot'}) + '\n' + json.dumps({'job': 'j0', 'ev': 'end'}) + '\n')
+        with mock.patch.object(runner, 'run', self.fake_run()):
+            runner.prun(self.rundir, self.cfg, self.out, workers=1)
+        recs = runner.read_jsonl(os.path.join(self.out, 'log.jsonl'))
+        self.assertEqual([r['ev'] for r in recs if r['job'] == 'j0'], ['end'])      # the batch's, not the old ones too
+
+
 class ExploreTest(unittest.TestCase):
     """Rounds of exploring: which jobs a finished capture makes new."""
 
@@ -253,6 +263,76 @@ class ProgressTest(unittest.TestCase):
         self.log(os.path.join(self.out, 'log.jsonl'), {'ev': 'shot', 'job': 'j0'}, {'ev': 'end', 'job': 'j0'})
         self.log(os.path.join(self.out, 'done.txt'), 'j0')
         self.assertEqual(self.line(bar), '  1 of 4 jobs done, 2 lines, now j1')
+
+
+class ForgetUnfinishedTest(unittest.TestCase):
+    """A capture that was killed outright leaves a job half recorded: the engine captures it again from its first line,
+    so what it recorded before must go from the log or every line of the job is there twice."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.out = self.tmp.name
+        self.log = os.path.join(self.out, 'log.jsonl')
+
+    def write(self, *records, raw='', done=()):
+        with open(self.log, 'w', encoding='utf-8') as f:
+            for r in records:
+                f.write(json.dumps(r) + '\n')
+            f.write(raw)
+        if done is not None:
+            with open(os.path.join(self.out, 'done.txt'), 'w', encoding='utf-8') as f:
+                f.write(''.join(d + '\n' for d in done))
+
+    def read(self):
+        with open(self.log, encoding='utf-8') as f:
+            return [json.loads(line) for line in f]
+
+    def test_what_an_interrupted_job_recorded_is_dropped_and_what_a_finished_one_recorded_is_not(self):
+        self.write({'ev': 'start', 'job': 'a'}, {'ev': 'shot', 'job': 'a', 'seq': 1}, {'ev': 'end', 'job': 'a'},
+                   {'ev': 'start', 'job': 'b'}, {'ev': 'shot', 'job': 'b', 'seq': 1}, {'ev': 'shot', 'job': 'b', 'seq': 2},
+                   done=['a'])
+        self.assertEqual(runner.forget_unfinished(self.out), 3)
+        self.assertEqual(self.read(), [{'ev': 'start', 'job': 'a'}, {'ev': 'shot', 'job': 'a', 'seq': 1},
+                                       {'ev': 'end', 'job': 'a'}])
+
+    def test_the_half_of_a_record_is_dropped_too(self):
+        self.write({'ev': 'start', 'job': 'a'}, {'ev': 'end', 'job': 'a'}, raw='{"ev": "shot", "job": "b", "fi',
+                   done=['a'])
+        self.assertEqual(runner.forget_unfinished(self.out), 1)
+        with open(self.log, encoding='utf-8') as f:
+            self.assertEqual(f.read(), '{"ev": "start", "job": "a"}\n{"ev": "end", "job": "a"}\n')
+
+    def test_a_log_that_is_whole_is_left_alone_to_the_byte(self):
+        self.write({'ev': 'start', 'job': 'a', 'text': 'Привет\u2028!'}, {'ev': 'end', 'job': 'a'}, done=['a'])
+        before = os.stat(self.log)
+        with open(self.log, 'rb') as f:
+            data = f.read()
+        self.assertEqual(runner.forget_unfinished(self.out), 0)
+        with open(self.log, 'rb') as f:
+            self.assertEqual(f.read(), data)
+        self.assertEqual(os.stat(self.log).st_mtime_ns, before.st_mtime_ns)
+
+    def test_a_job_with_spaces_in_its_id_and_a_record_that_names_no_job(self):
+        self.write({'ev': 'start', 'job': 'start~1 2'}, {'ev': 'end', 'job': 'start~1 2'}, {'ev': 'note'},
+                   {'ev': 'start', 'job': 'start~3'}, done=['start~1 2'])
+        runner.forget_unfinished(self.out)
+        self.assertEqual([r['ev'] for r in self.read()], ['start', 'end', 'note'])
+
+    def test_no_done_list_means_every_job_is_captured_again(self):
+        self.write({'ev': 'start', 'job': 'a'}, {'ev': 'end', 'job': 'a'}, done=None)
+        self.assertEqual(runner.forget_unfinished(self.out), 2)
+        self.assertEqual(self.read(), [])
+
+    def test_nothing_to_do_without_a_log(self):
+        self.assertEqual(runner.forget_unfinished(self.out), 0)
+        self.assertFalse(os.path.exists(self.log))
+
+    def test_a_last_record_without_its_newline_gets_one_before_the_engine_appends(self):
+        self.write(done=['a'], raw='{"ev": "end", "job": "a"}')
+        runner.forget_unfinished(self.out)
+        with open(self.log, 'rb') as f:
+            self.assertEqual(f.read(), b'{"ev": "end", "job": "a"}\n')
 
 
 class SizeTest(unittest.TestCase):
