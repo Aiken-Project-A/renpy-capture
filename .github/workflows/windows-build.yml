@@ -1,0 +1,137 @@
+# The Windows build: a zip with a program and a window that need nothing installed (no Python, no pipx, no console).
+# It is built on every pull request (the zip is an artifact of the run), tried the way a person would use it
+# (packaging/windows/check-build.ps1), and a published release gets it attached as
+# renpy-capture-<version>-windows-x64.zip, beside what publish.yml does for PyPI.
+# Run by hand with a tag to attach the zip to a release that was made before this file existed.
+name: windows build
+
+on:
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The release to attach the zip to, e.g. v0.2.1 (empty: only build it and try it)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  reference:
+    # The capture of The Question that the program is compared with: made on Linux, as the Windows jobs of tests.yml do.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install Xvfb and Mesa
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri libegl1
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/renpy-capture/sdk
+          key: ${{ runner.os }}-renpy-sdk-8.3.2
+      - run: pip install .
+      - name: Capture The Question under Xvfb
+        run: |
+          sdk=$(renpy-capture sdk --renpy-version 8.3.2 | tail -n 1)
+          cp -r "$sdk/the_question" "$RUNNER_TEMP/the_question"
+          renpy-capture capture "$RUNNER_TEMP/the_question" "$RUNNER_TEMP/linux" --display xvfb --renpy-version 8.3.2
+      - uses: actions/upload-artifact@v7
+        with:
+          name: the-question-linux
+          path: ${{ runner.temp }}/linux/out
+          retention-days: 7
+
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install the package, and PyInstaller (a tool of this build, not a dependency of the package)
+        run: python -m pip install pyinstaller==6.22.3 .
+      - name: Build the folder
+        run: pyinstaller --noconfirm --distpath dist --workpath build packaging/windows/renpy-capture.spec
+      - name: Pack the zip
+        shell: pwsh
+        run: |
+          python packaging/windows/make_zip.py
+          $zip = Get-ChildItem dist -Filter 'renpy-capture-*-windows-x64.zip' | Select-Object -First 1
+          "### The build`n`n$($zip.Name), $('{0:N1}' -f ($zip.Length / 1MB)) MB`n" >> $env:GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: renpy-capture-windows-x64
+          path: dist/renpy-capture-*-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  try-it:
+    # The zip, unpacked on a machine that has none of what it was built with, and used: the command line capture of The
+    # Question against the one made on Linux, the window up and closed, a game with only compiled scripts, the window
+    # running a capture. What it measures is in the summary of the run.
+    needs: [reference, build]
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7                 # only for the script that tries the build
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/cache@v6
+        with:
+          path: ~\AppData\Local\renpy-capture\sdk
+          key: ${{ runner.os }}-renpy-sdk-8.3.2
+      - name: A screen of 1920x1080 (1024x768 shrinks the game window, and the frames with it)
+        shell: pwsh
+        run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
+      - uses: actions/download-artifact@v8
+        with:
+          name: renpy-capture-windows-x64
+          path: ${{ runner.temp }}\zip
+      - uses: actions/download-artifact@v8
+        with:
+          name: the-question-linux
+          path: ${{ runner.temp }}\reference
+      - name: Try the zip the way a person would
+        shell: pwsh
+        run: |
+          $zip = (Get-ChildItem "$env:RUNNER_TEMP\zip" -Filter *.zip).FullName
+          .\packaging\windows\check-build.ps1 -Zip $zip -Reference "$env:RUNNER_TEMP\reference" -Work "$env:RUNNER_TEMP\check"
+      - name: What the window left
+        if: always()
+        shell: pwsh
+        run: |
+          Get-Content "$env:RUNNER_TEMP\check\gui_work\renpy-capture.log" -Tail 40 -ErrorAction SilentlyContinue
+          exit 0
+
+  attach:
+    # A published release (or a tag given by hand) gets the zip, once it has been tried.
+    if: github.event_name == 'release' || inputs.tag != ''
+    needs: [build, try-it]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: renpy-capture-windows-x64
+          path: dist
+      - name: The version of the zip is the tag's
+        run: |
+          ls dist | grep -F -- "-${TAG#v}-windows-x64.zip" || { echo "the zip is not of version ${TAG#v}:"; ls dist; exit 1; }
+      - name: Attach it to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" dist/*-windows-x64.zip --clobber --repo "$GITHUB_REPOSITORY"
