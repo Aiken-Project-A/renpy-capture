@@ -50,10 +50,68 @@ jobs:
           RENPY_CAPTURE_IT: '1'
           RENPY_CAPTURE_IT_DISPLAY: xvfb
           RENPY_CAPTURE_IT_VERSION: ${{ matrix.renpy-version }}
+          RENPY_CAPTURE_IT_KEEP: ${{ runner.temp }}/reference
         run: python -m unittest tests.test_the_question -v
+      - name: Keep the capture, the reference of the Windows job
+        uses: actions/upload-artifact@v7
+        with:
+          name: the-question-linux-${{ matrix.renpy-version }}
+          path: ${{ runner.temp }}/reference
+          retention-days: 7
       - name: Capture the Torture Test under Xvfb
         env:
           RENPY_CAPTURE_IT: '1'
           RENPY_CAPTURE_IT_DISPLAY: xvfb
           RENPY_CAPTURE_IT_VERSION: ${{ matrix.renpy-version }}
         run: python -m unittest tests.test_torture -v
+
+  windows-unit:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: pip install .
+      - run: python -m unittest discover -s tests -t . -v
+
+  windows-end-to-end:
+    runs-on: windows-latest
+    needs: end-to-end                        # its capture on Linux is the reference
+    strategy:
+      fail-fast: false
+      matrix:
+        renpy-version: ['8.3.2', '7.8.7']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/cache@v6
+        with:
+          path: ~\AppData\Local\renpy-capture\sdk
+          key: ${{ runner.os }}-renpy-sdk-${{ matrix.renpy-version }}
+      - run: pip install .
+      - name: The capture of the same game on Linux
+        uses: actions/download-artifact@v8
+        with:
+          name: the-question-linux-${{ matrix.renpy-version }}
+          path: ${{ runner.temp }}/reference
+      - name: Capture The Question in a window, and compare it with Linux line by line
+        env:
+          RENPY_CAPTURE_IT: '1'
+          RENPY_CAPTURE_IT_VERSION: ${{ matrix.renpy-version }}
+          RENPY_CAPTURE_IT_REFERENCE: ${{ runner.temp }}/reference
+        run: python -m unittest tests.test_the_question -v
+      - name: Capture it with the command line, as a user would
+        shell: pwsh
+        run: |
+          $sdk = renpy-capture sdk --renpy-version ${{ matrix.renpy-version }}
+          Copy-Item -Recurse "$sdk\the_question" "$env:RUNNER_TEMP\the_question"
+          renpy-capture capture "$env:RUNNER_TEMP\the_question" "$env:RUNNER_TEMP\work"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          renpy-capture compare "$env:RUNNER_TEMP\reference" "$env:RUNNER_TEMP\work\out" --states-only
+      - name: What the engine drew with
+        if: always()
+        shell: pwsh
+        run: Select-String -Path "$env:RUNNER_TEMP\work\run\log.txt" -Pattern 'renderer|Renderer|Vendor|Version|Screen sizes|display bounds' -ErrorAction SilentlyContinue
