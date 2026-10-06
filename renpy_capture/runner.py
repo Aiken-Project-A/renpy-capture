@@ -728,6 +728,36 @@ def _fresh_start(rundir, sdk_dir):
             os.remove(p)
 
 
+def forget_unfinished(out):
+    """The engine skips the jobs of done.txt and captures every other one from its first line, so what a job recorded
+    before it was interrupted would be in the log twice, and each of its lines twice in the pages. A capture that was
+    killed outright (Cancel is that on Windows, and so is a crash or a power cut) leaves such a job, and the half of a
+    record that the kill cut off: both are dropped from the log here, before the engine goes on. Returns how many
+    records it dropped."""
+    log = os.path.join(out, 'log.jsonl')
+    if not os.path.exists(log):
+        return 0
+    done = read_done(os.path.join(out, 'done.txt'))
+    kept, dropped = [], 0
+    with open(log, encoding='utf-8') as f:
+        for line in f:
+            try:
+                r = json.loads(line)
+            except ValueError:                      # half a record: the kill came in the middle of its write
+                dropped += 1
+                continue
+            if isinstance(r, dict) and 'job' in r and r['job'] not in done:
+                dropped += 1
+            else:
+                kept.append(line)
+    if dropped or (kept and not kept[-1].endswith('\n')):
+        tmp = log + '.new'
+        with open(tmp, 'w', encoding='utf-8', newline='\n') as f:
+            f.writelines(line if line.endswith('\n') else line + '\n' for line in kept)
+        os.replace(tmp, log)
+    return dropped
+
+
 def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, screen=None, fast=False,
         language=None, text=False, quiet=False, progress=True):
     """Run the jobs of a config in one engine. A watchdog restarts the engine when the log has not grown for
@@ -749,6 +779,7 @@ def run(rundir, cfg_path, out, timewarp=4.0, stall=180, display=None, gpu=None, 
     env = _engine_env(info, rundir, cfg_path, out, disp, genv, timewarp, fast, text, language or cfg.get('language'))
     inner = _launcher(rundir, sdk_dir, disp, env, rlog)
     _fresh_start(rundir, sdk_dir)
+    forget_unfinished(out)                          # (after the sweep: an engine that outlived its capture is gone)
     log, done = os.path.join(out, 'log.jsonl'), os.path.join(out, 'done.txt')
     ids = [j['id'] for j in cfg['jobs']]
     bar = Progress(out, len(ids)) if progress else None
@@ -847,6 +878,7 @@ def prun(rundir, cfg_path, out, workers=4, timewarp=4.0, batch=8, display=None, 
     queue for another launch; after three failures it is given up."""
     cfg = read_json(cfg_path)
     os.makedirs(os.path.join(out, 'frames'), exist_ok=True)
+    forget_unfinished(out)                          # (a batch is merged before its jobs are marked done)
     dpath = os.path.join(out, 'done.txt')
     done = read_done(dpath)
     queue = [j for j in cfg['jobs'] if j['id'] not in done]

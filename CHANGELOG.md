@@ -38,6 +38,10 @@
 ### Fixed
 - An engine that never wrote a line (it or the screen did not start) ended a capture with a traceback about a missing
   log; it now ends with a sentence that points to what the engine and the screen said.
+- A capture that was killed outright in the middle of a job (Cancel in the window on Windows, a crash, a power cut) and
+  then run again had that job's first lines in its log twice, and so twice in the pages (`Done: 142 lines` for a game of
+  128). The engine takes every job that is not in `done.txt` from its first line, so what such a job had recorded is now
+  dropped from the log before the engine goes on, with the half of a record that the kill cut off.
 
 ### Windows
 - renpy-capture runs on Windows 10 and 11 with Python 3.9 or newer (`pipx install renpy-capture`), proven on every
