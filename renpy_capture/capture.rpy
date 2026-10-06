@@ -564,6 +564,9 @@ init python:
                 raise renpy.game.QuitException()
         if not P.active:
             return
+        if P.calling is not None and P.calling in P.stubs:   # a stubbed mini-game returns its value by itself: no
+            self.force_redraw = True                  # capture of its own (an interface screen leaves the scene as
+            return                                    # it was, and the early capture would end it first, with True)
         cur = renpy.game.context().current            # time is counted from the start of the statement, not of the
         if P.wait_node is not None:                   # interaction: waiting on a menu (wait_menus) until its timer
             if cur == P.wait_node:                    # leads the game on

@@ -160,6 +160,7 @@ label customscreen_scene:
     hide screen banner_screen
     $ torture_note = renpy.open_file("torture_note.txt", encoding="utf-8").read().strip()
     "[torture_note]"
+    pause 0.5                                        # the scene alone, then the mini-game over it, unchanged
     call screen dice_game                            # a mini-game: the config stubs it, a win; one job loses
     if _return == "win":
         "The dice roll your way."

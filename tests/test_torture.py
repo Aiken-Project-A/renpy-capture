@@ -53,7 +53,7 @@ CONFIG = {
         {'id': 'dice lost', 'label': 'customscreen_scene', 'stub_screens': {'dice_game': 'lose'}},
     ],
     'stub_screens': {'dice_game': 'win'},
-    'ui': '^hud$',
+    'ui': '^(hud|dice_game)$',          # the dice game is an interface screen, as every screen with the starter's .*
     'hide_tags': '^caption_card$',
     'settle': 0.3,
     'settle_max': 1.5,
@@ -251,6 +251,10 @@ class TortureTest(unittest.TestCase):
                 said[r['what']].add(r['job'].split('~')[0])
         self.assertEqual(dict(said), {'The dice roll your way.': {'start'},
                                       'The dice roll against you.': {'dice lost'}})
+        lines = read_text(os.path.join(GAME_SRC, 'game', 'script.rpy')).splitlines()
+        call = next(k for k, ln in enumerate(lines, 1) if ln.lstrip().startswith('call screen dice_game'))
+        self.assertFalse([r for r in self.records() if r['ev'] == 'shot' and r['line'] == call
+                          and r['file'].endswith('script.rpy')])       # the stub answers it, not the capture
 
     def test_a_search_path_beside_the_game(self):
         """The game puts notes/, a folder next to game/, on its search path: the engine runs on the launch folder and
