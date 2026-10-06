@@ -12,11 +12,6 @@ default found_key = False
 default veteran_mode = False
 default timeout_choice = None
 
-# A folder next to game/ on the search path, given relative to the game's folder (the Ren'Py Tutorial takes its fonts
-# from "../launcher/game/fonts" this way): the engine runs on a launch folder elsewhere and must still find it.
-init python:
-    config.searchpath.append("notes")
-
 label start:
     show screen hud
     "Welcome to the Torture Test, a small game made only to be captured."
@@ -158,27 +153,7 @@ label customscreen_scene:
     show screen banner_screen("A banner appears on screen.")
     "This banner is part of the scene, not the interface."
     hide screen banner_screen
-    $ torture_note = renpy.open_file("torture_note.txt", encoding="utf-8").read().strip()
-    "[torture_note]"
-    pause 0.5                                        # the scene alone, then the mini-game over it, unchanged
-    call screen dice_game                            # a mini-game: the config stubs it, a win; one job loses
-    if _return == "win":
-        "The dice roll your way."
-    else:
-        "The dice roll against you."
-    "A signpost stands where the road forks."
-label signpost_fork:
-    call screen signpost
-    if _return == "north":
-        "You take the north road, up into the hills."
-    else:
-        "You take the south road, down to the river."
-    return
-
-label signpost_cellar:
-    "You climb down into the cellar instead."
-    "A ladder leads back up to the fork."         # the signpost again, as a hub is met again: the job ends there
-    jump signpost_fork
+    jump customscreen_more
 
 
 label random_scene:
@@ -228,3 +203,34 @@ label changes_scene:
     "The same caption, shown from Python this time."
     $ renpy.hide("caption_card")
     return
+
+
+# Added later, at the end of the file so that the lines above keep their numbers (and their captures stay the same).
+
+# A folder next to game/ on the search path, given relative to the game's folder (the Ren'Py Tutorial takes its fonts
+# from "../launcher/game/fonts" this way): the engine runs on a launch folder elsewhere and must still find it.
+init python:
+    config.searchpath.append("notes")
+
+label customscreen_more:
+    $ torture_note = renpy.open_file("torture_note.txt", encoding="utf-8").read().strip()
+    "[torture_note]"
+    pause 0.5                                        # the scene alone, then the mini-game over it, unchanged
+    call screen dice_game                            # a mini-game: the config stubs it, a win; one job loses
+    if _return == "win":
+        "The dice roll your way."
+    else:
+        "The dice roll against you."
+    "A signpost stands where the road forks."
+label signpost_fork:
+    call screen signpost
+    if _return == "north":
+        "You take the north road, up into the hills."
+    else:
+        "You take the south road, down to the river."
+    return
+
+label signpost_cellar:
+    "You climb down into the cellar instead."
+    "A ladder leads back up to the fork."         # the signpost again, as a hub is met again: the job ends there
+    jump signpost_fork
