@@ -105,7 +105,7 @@ class TortureTest(unittest.TestCase):
     def test_no_errors_or_stops(self):
         recs = self.records()
         self.assertFalse([r for r in recs if r['ev'] == 'error'])
-        self.assertFalse([r for r in recs if r['ev'] == 'stop'])
+        self.assertEqual([r['why'] for r in recs if r['ev'] == 'stop'], ['hub'])     # the signpost met again
 
     def test_nothing_left_uncaptured(self):
         with contextlib.redirect_stdout(io.StringIO()):
@@ -219,10 +219,25 @@ class TortureTest(unittest.TestCase):
         menus = [r['menu'] for r in shots if (r.get('menu') or {}).get('screen') == 'signpost']
         self.assertTrue(menus)
         self.assertEqual({tuple(m['options']) for m in menus}, {('North road', 'South road', 'The cellar door')})
-        self.assertEqual({m['pick'] for m in menus}, {0, 1, 2})
+        self.assertEqual({m['pick'] for m in menus if 'pick' in m}, {0, 1, 2})
         whats = {r.get('what') for r in shots}
         for line in self.SIGNPOST:
             self.assertIn(line, whats)
+
+    def test_a_called_screen_met_again_ends_the_job(self):
+        """Back at the signpost from the cellar, as at a hub: nothing is planned for it, so the job ends there rather
+        than taking the next road (each road is a job of its own already)."""
+        recs = self.records()
+        stop = next(r for r in recs if r['ev'] == 'stop')
+        self.assertEqual((stop['why'], stop['line']), ('hub', self.signpost_line()))
+        shots = [r for r in recs if r['ev'] == 'shot' and r['job'] == stop['job']]
+        self.assertEqual(shots[-2]['what'], 'A ladder leads back up to the fork.')
+        self.assertEqual(shots[-1]['menu']['screen'], 'signpost')
+        self.assertNotIn('pick', shots[-1]['menu'])
+
+    def signpost_line(self):
+        lines = read_text(os.path.join(GAME_SRC, 'game', 'script.rpy')).splitlines()
+        return lines.index('    call screen signpost') + 1
 
     def test_a_search_path_beside_the_game(self):
         """The game puts notes/, a folder next to game/, on its search path: the engine runs on the launch folder and

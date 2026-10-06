@@ -161,6 +161,7 @@ label customscreen_scene:
     $ torture_note = renpy.open_file("torture_note.txt", encoding="utf-8").read().strip()
     "[torture_note]"
     "A signpost stands where the road forks."
+label signpost_fork:
     call screen signpost
     if _return == "north":
         "You take the north road, up into the hills."
@@ -170,7 +171,8 @@ label customscreen_scene:
 
 label signpost_cellar:
     "You climb down into the cellar instead."
-    return
+    "A ladder leads back up to the fork."         # the signpost again, as a hub is met again: the job ends there
+    jump signpost_fork
 
 
 label random_scene:
