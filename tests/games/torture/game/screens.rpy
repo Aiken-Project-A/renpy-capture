@@ -45,3 +45,20 @@ screen nvl(dialogue, items=None):
 # A screen of the scene whose text follows a variable: the same screen, shown once, is a new picture on every change.
 screen tally_screen():
     text "Tally: [torture_tally]" xalign 0.5 yalign 0.3 size 48 color "#ffffff"
+
+# A screen the script calls (`call screen`) and waits on, as a hub or a map is: its buttons that lead on are the options
+# of a menu, worded as a screen reader says them (a button's text, or its `alt`). A button that leads nowhere and one
+# that cannot be pressed are not options.
+screen signpost():
+    vbox:
+        xalign 0.5
+        yalign 0.5
+        spacing 16
+        textbutton "North road" action Return("north")
+        textbutton "South road" action Return("south")
+        button:
+            action Jump("signpost_cellar")
+            alt "The cellar door"
+            add Solid("#665544", xsize=120, ysize=60)
+        textbutton "Read the sign" action Notify("Both roads lead home.")
+        textbutton "The locked gate" action [SensitiveIf(False), Return("gate")]
