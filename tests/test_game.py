@@ -99,6 +99,20 @@ class GameTest(unittest.TestCase):
         self.assertIn('new.rpy', os.listdir(os.path.join(run, 'game')))
         self.assertTrue(os.path.exists(os.path.join(run, 'game', 'cache', 'bytecode-39.rpyb')))
 
+    def test_the_capture_script_has_lf_however_it_was_checked_out(self):
+        """git on Windows checks text out with CRLF, and a line continued with a backslash breaks on CRLF."""
+        crlf = os.path.join(self.tmp.name, 'capture.rpy')
+        with open(runner.CAPTURE_RPY, 'rb') as f, open(crlf, 'wb') as g:
+            g.write(f.read().replace(b'\n', b'\r\n'))
+        run = os.path.join(self.tmp.name, 'run')
+        with mock.patch.object(runner, 'CAPTURE_RPY', crlf):
+            runner.setup(self.root, run, quiet=True)
+        with open(os.path.join(run, 'game', runner.RPY_NAME), 'rb') as f:
+            data = f.read()
+        self.assertNotIn(b'\r\n', data)
+        with open(runner.CAPTURE_RPY, 'rb') as f:
+            self.assertEqual(data, f.read().replace(b'\r\n', b'\n'))
+
     def test_launch_folder_is_not_the_game(self):
         with self.assertRaises(SystemExit):
             runner.setup(self.root, self.root)

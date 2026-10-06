@@ -1,0 +1,3 @@
+# Ren'Py scripts keep LF everywhere: a line continued with a backslash breaks on CRLF (git on Windows checks text
+# out with CRLF by default)
+*.rpy text eol=lf

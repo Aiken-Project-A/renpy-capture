@@ -190,7 +190,9 @@ def link_game(info, rundir):
                   'drive and NTFS); a launch folder on the drive of the game takes no room', flush=True)
     for sub in ('saves', 'cache'):
         os.makedirs(os.path.join(rg, sub), exist_ok=True)
-    shutil.copy(CAPTURE_RPY, os.path.join(rg, RPY_NAME))
+    with open(CAPTURE_RPY, 'rb') as src, open(os.path.join(rg, RPY_NAME), 'wb') as dst:
+        dst.write(src.read().replace(b'\r\n', b'\n'))   # LF, however it was checked out: a line continued with a
+                                                            # backslash is one line for Ren'Py only before LF
 
 
 def _unlink(g, rg, d, made=None, keep=()):
