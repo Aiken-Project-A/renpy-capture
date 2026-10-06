@@ -6,7 +6,8 @@ layeredimage whose attributes change between lines, one-shot and endless ATL, di
 that is part of the scene next to a HUD screen that is not, a shared procedure reached by call/return from two
 scenes, renpy.random and a full restart; its own say and choice screens, drawn with text, and a click-to-continue
 indicator that blinks for ever; and a scene that changes while its statements stay the same (one show line run with
-other arguments, a screen whose text follows a variable, a caption the config hides however it is shown).
+other arguments, a screen whose text follows a variable, a caption the config hides however it is shown);
+a file found on a search path the game gives relative to its own folder.
 
 Opt-in (it downloads the SDK once and needs a display backend): RENPY_CAPTURE_IT=1 python -m unittest
 tests.test_torture. RENPY_CAPTURE_IT_VERSION picks the SDK (default 8.3.2), RENPY_CAPTURE_IT_DISPLAY and
@@ -206,6 +207,12 @@ class TortureTest(unittest.TestCase):
         (Its menu is answered all the same: test_nothing_left_uncaptured finds both pages after it.)"""
         first, second = self.shots_of(*NVL_LINES)
         self.assertEqual(first['frame'], second['frame'])
+
+    def test_a_search_path_beside_the_game(self):
+        """The game puts notes/, a folder next to game/, on its search path: the engine runs on the launch folder and
+        still reads the note from there."""
+        notes = [r for r in self.records() if r['ev'] == 'shot' and r.get('what') == '[torture_note]']
+        self.assertTrue(notes)
 
     def test_records_name_the_games_calls_only(self):
         """The return points in a record are the game's: the call of the job itself (in the capture's own script)

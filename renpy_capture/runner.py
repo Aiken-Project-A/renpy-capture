@@ -621,6 +621,8 @@ def _engine_env(info, rundir, cfg_path, out, disp, genv, timewarp, fast, text, l
            'RENPY_GL_VSYNC': '0',      # Ren'Py only slows itself down with vsync; a 60 Hz screen does not matter here
            'PYTHONHASHSEED': '0',      # the order of sets (image attributes, a game's own sets) is the same every run
            'RENPY_CAPTURE_CONFIG': os.path.abspath(cfg_path), 'RENPY_CAPTURE_OUT': os.path.abspath(out),
+           'RENPY_CAPTURE_BASE': os.path.dirname(game_dir(info['game'])),   # the game's own folder: its relative
+                                                                              # search paths start there
            'PATH': os.path.join(rundir, 'bin') + os.pathsep + os.environ.get('PATH', '/usr/bin:/bin'),
            'BROWSER': 'true'}
     env.update(genv)

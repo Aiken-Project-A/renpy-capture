@@ -12,6 +12,11 @@ default found_key = False
 default veteran_mode = False
 default timeout_choice = None
 
+# A folder next to game/ on the search path, given relative to the game's folder (the Ren'Py Tutorial takes its fonts
+# from "../launcher/game/fonts" this way): the engine runs on a launch folder elsewhere and must still find it.
+init python:
+    config.searchpath.append("notes")
+
 label start:
     show screen hud
     "Welcome to the Torture Test, a small game made only to be captured."
@@ -153,6 +158,8 @@ label customscreen_scene:
     show screen banner_screen("A banner appears on screen.")
     "This banner is part of the scene, not the interface."
     hide screen banner_screen
+    $ torture_note = renpy.open_file("torture_note.txt", encoding="utf-8").read().strip()
+    "[torture_note]"
     return
 
 

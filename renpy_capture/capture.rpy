@@ -944,6 +944,15 @@ init python:
             _rc_P.set_timer = _rc_pg.time.set_timer
             _rc_pg.time.set_timer = lambda *a, **k: None
         config.performance_test = False            # no "performance" screen: without GL we quit by ourselves
+        # A folder the game adds to its search path relative to its own folder (the Tutorial takes fonts from
+        # "../launcher/game/fonts", next to it in the SDK) is looked for next to the game, not next to the launch
+        # folder the engine runs on.
+        _rc_base = _rc_os.environ.get("RENPY_CAPTURE_BASE")
+        if _rc_base:
+            config.searchpath[:] = [
+                _rc_os.path.normpath(_rc_os.path.join(_rc_base, _d))
+                if not _rc_os.path.isabs(_d) and not _rc_os.path.isdir(_rc_os.path.join(config.basedir, _d))
+                and _rc_os.path.isdir(_rc_os.path.join(_rc_base, _d)) else _d for _d in config.searchpath]
         for _k, _v in _rc_P.cfg.get("persistent", {}).items():
             setattr(persistent, _k, _v)
         # A clean frame: effect images (fades, flashes, noise, spirals) become empty; transforms of endless
