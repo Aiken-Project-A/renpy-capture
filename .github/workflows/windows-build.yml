@@ -2,7 +2,8 @@
 # It is built on every pull request (the zip is an artifact of the run), tried the way a person would use it
 # (packaging/windows/check-build.ps1), and a published release gets it attached as
 # renpy-capture-<version>-windows-x64.zip, beside what publish.yml does for PyPI.
-# Run by hand with a tag to attach the zip to a release that was made before this file existed.
+# Run by hand with a tag to attach the zip to a release whose own run failed (the tag has to contain this build:
+# the first release made after it was added is the first to carry a zip).
 name: windows build
 
 on:
@@ -12,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "The release to attach the zip to, e.g. v0.2.1 (empty: only build it and try it)"
+        description: "The release to attach the zip to, e.g. v0.3.0 (empty: only build it and try it)"
         required: false
 
 permissions:

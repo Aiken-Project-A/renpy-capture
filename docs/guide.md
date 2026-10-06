@@ -172,8 +172,9 @@ is installed. What it keeps: the engines it downloads (`%LOCALAPPDATA%\renpy-cap
   can read is checked, a game with only compiled scripts is read by unrpyc inside the program, and the window captures
   The Question through the command that stands beside it. What it measures (the size of the build, the start, the
   capture) is in the summary of the run.
-- **A release.** Publishing a release builds, tries and attaches the zip to it, once its version is the tag's (the
-  workflow can also be run by hand with a tag, for a release made before it existed).
+- **A release.** Publishing a release builds, tries and attaches the zip to it, once its version is the tag's. Run by
+  hand with a tag, the workflow does the same for a release whose own run failed. The tag has to contain the build, so
+  the first release made after it was added is the first to carry a zip.
 
 ## Capture a game
 
