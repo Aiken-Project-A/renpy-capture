@@ -4,8 +4,9 @@ it under Xvfb).
 
 The end-to-end class is opt-in like the other ones (RENPY_CAPTURE_IT=1; it downloads the SDK once): it runs The Question
 through the window, with the real capture as its child process. RENPY_CAPTURE_GUI_SHOT=file.png saves a picture of the
-window when the run is over; RENPY_CAPTURE_IT_REFERENCE (a capture made on Linux) is compared with it like the other
-end-to-end tests do."""
+window when the run is over (RENPY_CAPTURE_GUI_SHOT_BASE=folder puts the game and the work folders it shows into that
+folder, to have short paths in it); RENPY_CAPTURE_IT_REFERENCE (a capture made on Linux) is compared with it like the
+other end-to-end tests do."""
 import contextlib
 import gc
 import io
@@ -33,6 +34,7 @@ from .test_gui import FakeRun, event, make_game
 VERSION = os.environ.get('RENPY_CAPTURE_IT_VERSION', '8.3.2')
 REFERENCE = os.environ.get('RENPY_CAPTURE_IT_REFERENCE')
 SHOT = os.environ.get('RENPY_CAPTURE_GUI_SHOT')
+BASE = os.environ.get('RENPY_CAPTURE_GUI_SHOT_BASE')                # where the game and the work folders are for the picture
 
 
 def display_here():
@@ -512,7 +514,12 @@ class WindowEndToEnd(unittest.TestCase):
         cls.sdk = sdk.ensure(VERSION)
         cls._tmp = tempfile.TemporaryDirectory(prefix='rc-gui-')
         cls.tmp = os.path.realpath(cls._tmp.name)
-        cls.game = os.path.join(cls.tmp, 'Games', 'The Question')
+        cls.folders = [os.path.join(cls.tmp, 'Games'), os.path.join(cls.tmp, 'renpy-capture')]
+        if BASE:                                                    # the picture shows these folders: short ones, of
+            cls.folders = [os.path.join(BASE, 'Games'), os.path.join(BASE, 'renpy-capture')]      # nobody's machine
+            if any(os.path.exists(f) for f in cls.folders):
+                raise unittest.SkipTest(f'{BASE}: Games or renpy-capture is there already, and is not ours to remove')
+        cls.game = os.path.join(cls.folders[0], 'The Question')
         shutil.copytree(os.path.join(cls.sdk, 'the_question'), cls.game, ignore=shutil.ignore_patterns('saves', 'cache'))
         os.makedirs(os.path.join(cls.game, 'renpy'))              # a game of Windows has its engine beside game/, and the
         shutil.copy(os.path.join(cls.sdk, 'renpy', 'vc_version.py'),                   # engine tells its version
@@ -520,7 +527,8 @@ class WindowEndToEnd(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        shutil.rmtree(cls.tmp, ignore_errors=True)
+        for folder in cls.folders + [cls.tmp]:
+            shutil.rmtree(folder, ignore_errors=True)
         try:
             cls._tmp.cleanup()                              # (done already: this keeps the finalizer of the folder quiet)
         except OSError:
@@ -534,7 +542,7 @@ class WindowEndToEnd(unittest.TestCase):
             patch.start()
             self.addCleanup(patch.stop)
         name = 'The Question' if 'whole' in self.id() else 'cancelled'            # (the picture shows this one)
-        self.work = os.path.join(self.tmp, 'renpy-capture', name)
+        self.work = os.path.join(self.folders[1], name)
         self.root = tk.Tk()
         self.addCleanup(self.root.destroy)
         self.ctl = Controller(Settings(os.path.join(self.tmp, 'gui.json')),
@@ -588,14 +596,27 @@ class WindowEndToEnd(unittest.TestCase):
             self.picture(SHOT)
 
     def picture(self, path):
-        """The window as it is now, in a file (what the README shows)."""
+        """The window as it is now, in a file (what the README shows): with its title bar and frame where the system
+        draws them (Windows), else what is inside."""
         from PIL import ImageGrab
         settle(self.root, 0.5)
         self.root.lift()
         self.root.attributes('-topmost', True)
+        self.root.focus_force()                                     # (a window that has the focus has a title that shows it)
         settle(self.root, 0.5)
         x, y, w, h = self.root.winfo_rootx(), self.root.winfo_rooty(), self.root.winfo_width(), self.root.winfo_height()
-        ImageGrab.grab(bbox=(x, y, x + w, y + h)).convert('RGB').save(path, optimize=True)
+        box = (x, y, x + w, y + h)
+        if os.name == 'nt':
+            try:
+                import ctypes
+                from ctypes import wintypes
+                frame = wintypes.RECT()                         # DWMWA_EXTENDED_FRAME_BOUNDS: the frame as it is seen
+                top = ctypes.windll.user32.GetParent(self.root.winfo_id())      # (Tk's own window, around the one it shows)
+                if ctypes.windll.dwmapi.DwmGetWindowAttribute(top, 9, ctypes.byref(frame), ctypes.sizeof(frame)) == 0:
+                    box = (frame.left, frame.top, frame.right, frame.bottom)
+            except (OSError, AttributeError):
+                pass
+        ImageGrab.grab(bbox=box).convert('RGB').save(path, optimize=True)
 
     def test_cancel_stops_the_capture_and_what_it_started_and_capture_goes_on(self):
         self.app.capture.invoke()

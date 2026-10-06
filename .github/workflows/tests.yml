@@ -164,6 +164,7 @@ jobs:
           RENPY_CAPTURE_IT_VERSION: ${{ matrix.renpy-version }}
           RENPY_CAPTURE_IT_REFERENCE: ${{ runner.temp }}/reference
           RENPY_CAPTURE_GUI_SHOT: ${{ runner.temp }}/window.png
+          RENPY_CAPTURE_GUI_SHOT_BASE: 'C:\'               # the picture shows C:\Games\… and C:\renpy-capture\…
         run: python -m unittest tests.test_gui_window -v
       - name: Keep the picture of the window
         if: always()
