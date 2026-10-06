@@ -92,26 +92,42 @@ jobs:
           path: ~\AppData\Local\renpy-capture\sdk
           key: ${{ runner.os }}-renpy-sdk-${{ matrix.renpy-version }}
       - run: pip install .
+      - name: A screen of 1920x1080 (1024x768 shrinks the game window, and the frames with it)
+        shell: pwsh
+        run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
       - name: The capture of the same game on Linux
         uses: actions/download-artifact@v8
         with:
           name: the-question-linux-${{ matrix.renpy-version }}
           path: ${{ runner.temp }}/reference
-      - name: Capture The Question in a window, and compare it with Linux line by line
+      - name: Capture The Question, and compare it with Linux line by line
         env:
           RENPY_CAPTURE_IT: '1'
           RENPY_CAPTURE_IT_VERSION: ${{ matrix.renpy-version }}
           RENPY_CAPTURE_IT_REFERENCE: ${{ runner.temp }}/reference
         run: python -m unittest tests.test_the_question -v
-      - name: Capture it with the command line, as a user would
+      - name: Capture it with the command line, as a user would, and on each display of Windows
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
           $sdk = renpy-capture sdk --renpy-version ${{ matrix.renpy-version }}
-          Copy-Item -Recurse "$sdk\the_question" "$env:RUNNER_TEMP\the_question"
-          renpy-capture capture "$env:RUNNER_TEMP\the_question" "$env:RUNNER_TEMP\work"
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          renpy-capture compare "$env:RUNNER_TEMP\reference" "$env:RUNNER_TEMP\work\out" --states-only
+          $game, $work = "$env:RUNNER_TEMP\the_question", "$env:RUNNER_TEMP\work"
+          Copy-Item -Recurse "$sdk\the_question" $game
+          renpy-capture capture $game $work --renpy-version ${{ matrix.renpy-version }}
+          renpy-capture compare "$env:RUNNER_TEMP\reference" "$work\out" --states-only
+          foreach ($d in 'window', 'offscreen') {               # the same frames, to the byte, as the default
+            renpy-capture run "$work\run" "$work\config.json" "$work\out-$d" --display $d
+            renpy-capture compare "$work\out" "$work\out-$d"
+          }
       - name: What the engine drew with
         if: always()
         shell: pwsh
-        run: Select-String -Path "$env:RUNNER_TEMP\work\run\log.txt" -Pattern 'renderer|Renderer|Vendor|Version|Screen sizes|display bounds' -ErrorAction SilentlyContinue
+        run: |
+          Select-String -Path "$env:RUNNER_TEMP\work\run\log.txt" -Pattern 'Renderer:|Version:|Screen sizes|display bounds' -ErrorAction SilentlyContinue
+          exit 0
+      - name: Capture the Torture Test
+        env:
+          RENPY_CAPTURE_IT: '1'
+          RENPY_CAPTURE_IT_VERSION: ${{ matrix.renpy-version }}
+        run: python -m unittest tests.test_torture -v
