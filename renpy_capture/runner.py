@@ -662,10 +662,13 @@ def _engine_env(info, rundir, cfg_path, out, disp, genv, timewarp, fast, text, l
 
 def _write_launcher(rundir, sdk_dir, disp, env, rlog):
     """The script the display runs: the engine under ``env``, minus what the display wants unset, its output to
-    renpy.log. Returns its path."""
+    renpy.log. Returns its path. The engine gets the niceness of the capture back: KWin, which runs with a real-time
+    priority of its own, starts it at niceness 0, and `nice renpy-capture …` would slow down only the host side."""
     inner = os.path.join(rundir, '.inner.sh')
+    n = os.getpriority(os.PRIO_PROCESS, 0) if hasattr(os, 'getpriority') else 0
+    nice = f'nice -n $(( {n} - $(nice) )) ' if n > 0 else ''
     with open(inner, 'w') as f:
-        f.write('#!/bin/sh\nexec env ' + ' '.join(f'-u {u}' for u in disp.unset) + ' '
+        f.write('#!/bin/sh\nexec ' + nice + 'env ' + ' '.join(f'-u {u}' for u in disp.unset) + ' '
                 + ' '.join(f'{k}={shlex.quote(v)}' for k, v in env.items())
                 + f' {shlex.quote(os.path.join(sdk_dir, "renpy.sh"))} {shlex.quote(os.path.abspath(rundir))}'
                 + f' >> {shlex.quote(os.path.abspath(rlog))} 2>&1\n')

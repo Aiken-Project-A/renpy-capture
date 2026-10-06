@@ -310,12 +310,27 @@ class LaunchTest(unittest.TestCase):
     def test_the_launcher_runs_the_sdk_on_the_launch_folder_under_that_environment(self):
         if runner.WINDOWS:
             self.skipTest('Linux: a shell script; see WindowsLaunchTest')
-        inner = runner._write_launcher(self.rundir, '/sdk dir', self.disp, {'A': 'x y', 'B': '1'}, 'out/renpy.log')
+        with mock.patch.object(runner.os, 'getpriority', lambda *a: 0):
+            inner = runner._write_launcher(self.rundir, '/sdk dir', self.disp, {'A': 'x y', 'B': '1'}, 'out/renpy.log')
         self.assertTrue(os.access(inner, os.X_OK))
         text = runner.read_text(inner)
         self.assertEqual(text.splitlines()[0], '#!/bin/sh')
         self.assertIn("exec env -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS A='x y' B=1 '/sdk dir/renpy.sh' ", text)
         self.assertTrue(text.rstrip().endswith(f">> {os.path.abspath('out/renpy.log')} 2>&1"))
+
+    def test_the_engine_gets_the_niceness_of_the_capture_back(self):
+        if runner.WINDOWS:
+            self.skipTest('Linux: a shell script; see WindowsLaunchTest')
+        sdk, seen = os.path.join(self.tmp.name, 'sdk'), os.path.join(self.tmp.name, 'nice.txt')
+        os.makedirs(sdk)
+        with open(os.path.join(sdk, 'renpy.sh'), 'w') as f:      # an engine that tells its niceness
+            f.write(f'#!/bin/sh\nnice > {seen}\n')
+        os.chmod(os.path.join(sdk, 'renpy.sh'), 0o755)
+        want = min(max(os.getpriority(os.PRIO_PROCESS, 0), 0) + 7, 19)     # (the tests may run at a negative one)
+        with mock.patch.object(runner.os, 'getpriority', lambda *a: want):     # the capture was started with nice
+            inner = runner._write_launcher(self.rundir, sdk, self.disp, {}, os.path.join(self.tmp.name, 'r.log'))
+        subprocess.run([inner], check=True)         # started at another niceness, as KWin starts it at its own
+        self.assertEqual(runner.read_text(seen).strip(), str(want))
 
     def test_a_launch_starts_from_default_persistent_data_and_no_old_traceback(self):
         saves = os.path.join(self.rundir, 'game', 'saves')

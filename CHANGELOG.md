@@ -38,6 +38,8 @@
   found: it was looked for next to the launch folder.
 - An engine left running by a capture that was killed outright no longer writes into the next capture of the same
   launch folder: every launch stops it first.
+- A capture started with `nice` runs its engines at that niceness on the KWin display too. KWin, which has a real-time
+  priority of its own, started them at niceness 0, so only the host side was slowed down.
 - `report` names the error of a job that ends on a bare `Exception: …` (a missing file or font), not the date at the
   end of the traceback.
 - `gaps` follows the game into a statement at the top level after a label's body (the Tutorial's `example` blocks):
