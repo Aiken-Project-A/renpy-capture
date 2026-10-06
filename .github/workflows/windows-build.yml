@@ -106,7 +106,8 @@ jobs:
         shell: pwsh
         run: |
           $zip = (Get-ChildItem "$env:RUNNER_TEMP\zip" -Filter *.zip).FullName
-          .\packaging\windows\check-build.ps1 -Zip $zip -Reference "$env:RUNNER_TEMP\reference" -Work "$env:RUNNER_TEMP\check"
+          .\packaging\windows\check-build.ps1 -Zip $zip -Reference "$env:RUNNER_TEMP\reference" `
+            -Work "$env:RUNNER_TEMP\check"
       - name: What the window left
         if: always()
         shell: pwsh
@@ -130,7 +131,8 @@ jobs:
           path: dist
       - name: The version of the zip is the tag's
         run: |
-          ls dist | grep -F -- "-${TAG#v}-windows-x64.zip" || { echo "the zip is not of version ${TAG#v}:"; ls dist; exit 1; }
+          ls dist | grep -F -- "-${TAG#v}-windows-x64.zip" || {
+            echo "the zip is not of version ${TAG#v}:"; ls dist; exit 1; }
       - name: Attach it to the release
         env:
           GH_TOKEN: ${{ github.token }}

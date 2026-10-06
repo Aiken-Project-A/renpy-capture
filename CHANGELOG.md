@@ -3,7 +3,8 @@
 ## Unreleased
 
 ### A window, and a Windows build that needs nothing installed
-- `renpy-capture gui` (or `renpy-capture-gui`, which opens no console on Windows) opens a window that does what `capture`
+- `renpy-capture gui` (or `renpy-capture-gui`, which opens no console on Windows) opens a window that does what
+  `capture`
   does, for people who never open a terminal: the folder of the game (a folder that is not a game is said so in plain
   words), a work folder named after the game in Documents, the translation to capture (the folders of `game/tl`, the
   original first), "show the text box", and one big Capture button. A game that does not tell its Ren'Py version is
@@ -30,11 +31,13 @@
   output (the steps, the engine being downloaded and unpacked with sizes, the branches and lines every second, the
   summary at the end, the reason when it stops), the text for a person on the standard error. It is how the window
   reads a capture, and how a script can ([the guide](docs/guide.md#the-progress-a-program-can-read)).
-- A capture told to stop with SIGTERM ends the way it does on Ctrl+C: the engine and the virtual screen are stopped first.
+- A capture told to stop with SIGTERM ends the way it does on Ctrl+C: the engine and the virtual screen are stopped
+  first.
 - `report` returns its warnings as data as well as printing them; `game_dir` can be told how many folders to look into.
 
 ### Fixed
-- An engine that never wrote a line (it or the screen did not start) ended a capture with a traceback about a missing log;
+- An engine that never wrote a line (it or the screen did not start) ended a capture with a traceback about a missing
+  log;
   it now ends with a sentence that points to what the engine and the screen said.
 
 ### Windows
