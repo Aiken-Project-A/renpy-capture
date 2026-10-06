@@ -95,7 +95,7 @@ as a zip that needs nothing installed (no Python, no pipx).
 3. Choose the folder of the game, and press **Capture**.
 
 <div align="center">
-<img src="https://raw.githubusercontent.com/Aiken-Project-A/renpy-capture/main/docs/images/window.png" width="70%" alt="The window of renpy-capture after a capture of The Question: the game folder, the work folder, the translation to capture, the Capture button, and under them what was captured and the buttons to open the page and the folder">
+<img src="https://raw.githubusercontent.com/Aiken-Project-A/renpy-capture/main/docs/images/window.png" width="722" alt="The window of renpy-capture after a capture of The Question: the game folder, the work folder, the translation to capture, the Capture button, and under them what was captured and the buttons to open the page and the folder">
 </div>
 
 The window tells in plain words what it is doing (the first time it downloads the engine of the game's version: 150 to
