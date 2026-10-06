@@ -348,6 +348,21 @@ class WindowTest(unittest.TestCase):
         log.add(['one more'])
         self.assertLess(log.text.yview()[1], 0.5)                               # reading further up: left alone
 
+    def test_the_log_pane_is_a_whole_number_of_lines_tall(self):
+        """At its end a log must not show its first line cut in half, whatever the size of the window."""
+        log = self.app.log
+        log.add([f'line {n}' for n in range(80)])
+        for height in (600, 637, 661, 700, 733):
+            self.root.geometry(f'{self.root.winfo_width()}x{height}')
+            settle(self.root, 0.2)
+            t, line = log.text, log.font.metrics('linespace')
+            t.yview_moveto(1.0)
+            settle(self.root, 0.1)
+            area = t.winfo_height() - 2 * (int(t.cget('borderwidth')) + int(t.cget('highlightthickness'))) \
+                - 2 * int(t.cget('pady'))
+            self.assertIn(area % line, (0, line - 1), (height, t.winfo_height(), area, line))   # (a pixel of margin)
+            self.assertGreater(t.yview()[1], 0.99)                              # at its end
+
     def test_the_window_can_be_made_smaller_and_larger(self):
         self.choose(make_game(self.tmp, 'Old', cache=True, around=('old',)))
         a = self.app

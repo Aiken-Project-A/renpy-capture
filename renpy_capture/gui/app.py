@@ -147,10 +147,13 @@ class LogView(ttk.Frame):
     """The text of a run, as it comes: scrolls by itself while the person is at the end of it, and not when they are
     reading further up."""
 
+    PAD = 4                                                 # the margin above and below the text, at least
+
     def __init__(self, parent):
         super().__init__(parent)
+        self.font = tkfont.nametofont('TkFixedFont')
         self.text = tk.Text(self, width=10, height=6, wrap='word', state='disabled', relief='solid', borderwidth=1,
-                            font=tkfont.nametofont('TkFixedFont'), takefocus=True, padx=6, pady=4)
+                            font=self.font, takefocus=True, padx=6, pady=self.PAD)
         bar = ttk.Scrollbar(self, command=self.text.yview)
         self.text.configure(yscrollcommand=bar.set)
         self.text.grid(row=0, column=0, sticky='nsew')
@@ -158,6 +161,22 @@ class LogView(ttk.Frame):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
         selectable(self.text)
+        self.text.bind('<Configure>', self.snap, add='+')
+
+    def snap(self, _event=None):
+        """Scrolled to its end, a log shows its first line cut in half unless the pane is a whole number of lines
+        tall: what is left over becomes margin instead."""
+        t, line = self.text, self.font.metrics('linespace')
+        frame = 2 * (int(t.cget('borderwidth')) + int(t.cget('highlightthickness')))
+        room = t.winfo_height() - frame - 2 * self.PAD
+        if line < 1 or room < line:
+            return
+        pady = self.PAD + -(-(room % line) // 2)            # (half of what is left over, rounded up)
+        if int(t.cget('pady')) != pady:
+            at_end = t.yview()[1] >= 0.999
+            t.configure(pady=pady)
+            if at_end:
+                t.yview_moveto(1.0)
 
     def add(self, lines):
         if not lines:
