@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+### Windows
+- renpy-capture runs on Windows 10 and 11 with Python 3.9 or newer (`pipx install renpy-capture`), proven on every
+  pull request by the tests on windows-latest: the unit tests, the Torture Test, and The Question on Ren'Py 8.3.2 and
+  7.8.7, whose capture has the same scene at every line as the capture made on Linux.
+- The SDK comes as the official `.zip` there (the same files as the `.tar.bz2`, checked against the same official
+  sha256 list), kept in `%LOCALAPPDATA%\renpy-capture\sdk`; the engine is `lib\py3-windows-x86_64\renpy.exe` of the
+  SDK (`py2-…` for Ren'Py 7).
+- The launch folder is made of hard links on Windows (symbolic links need an administrator or Developer Mode there),
+  or of copies when the game is on another drive; `.links.json` lists them. The game is still never written to.
+- The engine runs in a Job Object: it and anything it starts die with the capture, on Ctrl+C or when the console is
+  closed too. Saves and persistent data stay in the launch folder, an error opens no editor, and the game window does
+  not take the keyboard.
+- Displays of Windows: `desktop` (the default: a desktop of its own, nothing on the user's screen), `offscreen` (the
+  window beyond the edge of the screen) and `window`. On the tests' machine the three give the same frames, to the
+  byte. See the guide, "On Windows".
+- `capture.rpy` reaches the engine with LF line ends however git checked it out (with CRLF the engine stopped on
+  "Indentation mismatch"), and a path on another drive is printed as it is instead of stopping `setup`.
+
+### Fixed
+- A game that ships `x_ren.py` with its compiled `x.rpyc`: `x.rpyc` was linked into the launch folder, and the
+  engine, compiling `x_ren.py`, wrote it in place, through the link, into the game. It is no longer linked.
+
 ## 0.2.1 — 2026-10-03
 
 - renpy-capture is on PyPI: `pipx install renpy-capture`. A release on GitHub is published there by itself (trusted

@@ -89,8 +89,8 @@ expressions and match anywhere in the string (`re.search`) unless stated otherwi
 | key | meaning |
 |---|---|
 | `gpu` | `auto` (default), `nvidia` or `mesa`: the OpenGL vendor for the engine (and for KWin). The `--gpu` option overrides it. |
-| `display` | `kwin`, `xvfb` or `window`; the `--display` option overrides it. |
-| `screen` | The size of the virtual screen, `"1920x1200"` by default; the game window keeps its own size inside it. |
+| `display` | Linux: `kwin`, `xvfb` or `window`; Windows: `desktop`, `offscreen` or `window`. The `--display` option overrides it. |
+| `screen` | The size of the virtual screen (`kwin`, `xvfb`), `"1920x1200"` by default; the game window keeps its own size inside it. On Windows the screen is the real one. |
 
 ## `gaps`
 
