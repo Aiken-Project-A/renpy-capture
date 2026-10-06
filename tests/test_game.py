@@ -1,13 +1,25 @@
 """Reading a game on disk: where game/ is, files as the engine sees them, overlay mods left out, launch folders."""
+import contextlib
+import io
 import json
 import os
+import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 from renpy_capture import runner
 from renpy_capture.game import Game, engine_hint, engine_version, game_dir
 
 from .rpatool import write_rpa
+
+
+def linked(path, src):
+    """``path`` in a launch folder is the game's file ``src``: a symbolic link to it, on Windows a hard link (or a
+    copy, when the two are on different drives)."""
+    if runner.WINDOWS:
+        return os.path.isfile(path) and not os.path.islink(path) and os.path.samefile(path, src)
+    return os.path.islink(path) and os.readlink(path) == src
 
 
 class GameTest(unittest.TestCase):
@@ -76,7 +88,7 @@ class GameTest(unittest.TestCase):
         self.assertIn('script.rpy', names)
         self.assertIn(runner.RPY_NAME, names)
         self.assertFalse([n for n in names if 'translator3000' in n.lower()])
-        self.assertTrue(os.path.islink(os.path.join(run, 'game', 'script.rpy')))
+        self.assertTrue(linked(os.path.join(run, 'game', 'script.rpy'), os.path.join(self.root, 'game', 'script.rpy')))
         with open(os.path.join(run, runner.RUN_INFO), encoding='utf-8') as f:
             self.assertEqual(json.load(f)['version'], '8.2.3')
         with open(os.path.join(run, 'game', 'cache', 'bytecode-39.rpyb'), 'wb') as f:
@@ -104,7 +116,7 @@ class GameTest(unittest.TestCase):
         rg = os.path.join(run, 'game')
         runner.setup(self.root, run)
         self.assertFalse(os.path.islink(os.path.join(rg, 'scripts')))          # a real folder with links inside
-        self.assertTrue(os.path.islink(os.path.join(rg, 'scripts', 'day1.rpy')))
+        self.assertTrue(linked(os.path.join(rg, 'scripts', 'day1.rpy'), os.path.join(g, 'scripts', 'day1.rpy')))
         self.assertFalse(os.path.lexists(os.path.join(rg, 'shipped.rpyc')))
         compiled = ('script.rpyc', 'scripts/day1.rpyc', 'shipped.rpyc')
         for p in compiled:                                                     # what the engine's first launch writes
@@ -112,7 +124,8 @@ class GameTest(unittest.TestCase):
                 f.write(b'compiled here')
         runner.setup(self.root, run)                                           # every run links the folder again
         for p in compiled:                                                     # kept, not compiled again
-            self.assertTrue(os.path.isfile(os.path.join(rg, p)) and not os.path.islink(os.path.join(rg, p)), p)
+            with open(os.path.join(rg, p), 'rb') as f:
+                self.assertEqual(f.read(), b'compiled here', p)
         self.assertEqual(os.listdir(os.path.join(g, 'scripts')), ['day1.rpy'])  # the game is untouched
         with open(os.path.join(g, 'shipped.rpyc'), 'rb') as f:
             self.assertEqual(f.read(), b'rpyc')
@@ -128,6 +141,83 @@ class GameTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             runner.setup(self.root, run)
         self.assertTrue(os.path.exists(os.path.join(run, 'game', 'images', 'notes.txt')))
+
+    def test_a_script_compiled_from_ren_py_is_not_linked(self):
+        """The engine compiles x_ren.py into x.rpyc and writes it in place: a link there would let it write into the
+        game's own x.rpyc."""
+        g = os.path.join(self.root, 'game')
+        with open(os.path.join(g, 'extra_ren.py'), 'w') as f:
+            f.write('"""renpy\nlabel extra:\n"""\n')
+        with open(os.path.join(g, 'extra.rpyc'), 'wb') as f:
+            f.write(b'rpyc')
+        run = os.path.join(self.tmp.name, 'run')
+        runner.setup(self.root, run)
+        self.assertFalse(os.path.lexists(os.path.join(run, 'game', 'extra.rpyc')))
+        with open(os.path.join(run, 'game', 'extra.rpyc'), 'wb') as f:      # the engine's own
+            f.write(b'compiled here')
+        runner.setup(self.root, run)
+        with open(os.path.join(g, 'extra.rpyc'), 'rb') as f:
+            self.assertEqual(f.read(), b'rpyc')
+
+
+class WindowsLaunchFolderTest(GameTest):
+    """The launch folder as Windows makes it, on any system: hard links (a symbolic link needs an administrator or
+    Developer Mode there), copies when a hard link cannot be made, and a list of both, since neither looks like a
+    link. Every test of GameTest runs this way too."""
+
+    def setUp(self):
+        super().setUp()
+        p = mock.patch.object(runner, 'WINDOWS', True)
+        p.start()
+        self.addCleanup(p.stop)
+        self.run_dir = os.path.join(self.tmp.name, 'run')
+        self.src = os.path.join(self.root, 'game', 'script.rpy')
+        self.dst = os.path.join(self.run_dir, 'game', 'script.rpy')
+
+    def setup_quietly(self, **kw):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            runner.setup(self.root, self.run_dir, **kw)
+        return out.getvalue()
+
+    def test_hard_links_and_their_list(self):
+        self.setup_quietly()
+        self.assertEqual(os.stat(self.src).st_nlink, 2)
+        made = runner.read_json(os.path.join(self.run_dir, runner.LINKS))
+        self.assertEqual(made[os.path.join('images', 'bg room.png')], 'link')
+        self.assertEqual(made['script.rpy'], 'link')
+        self.assertNotIn(runner.RPY_NAME, made)
+        self.assertTrue(os.path.isfile(os.path.join(self.run_dir, 'bin', runner.NO_EDITOR)))
+        self.setup_quietly()                                    # again: the old links go, new ones come
+        self.assertEqual(os.stat(self.src).st_nlink, 2)
+        shutil.rmtree(self.run_dir)                             # a launch folder deleted: the game keeps its files
+        self.assertEqual(os.stat(self.src).st_nlink, 1)
+        with open(self.src) as f:
+            self.assertIn('label start', f.read())
+
+    def test_a_copy_when_a_hard_link_cannot_be_made(self):
+        """Another drive, FAT: the files are copied, said once, and kept while the game's file stays the same."""
+        with mock.patch.object(runner.os, 'link', side_effect=OSError('not the same device')):
+            said = self.setup_quietly()
+            self.assertIn('copied into the launch folder', said)
+            self.assertEqual(os.stat(self.src).st_nlink, 1)
+            self.assertEqual(runner.read_json(os.path.join(self.run_dir, runner.LINKS))['script.rpy'], 'copy')
+            before = os.stat(self.dst)
+            self.assertNotIn('copied', self.setup_quietly())    # nothing changed: nothing copied again
+            self.assertEqual(os.stat(self.dst).st_ino, before.st_ino)
+            with open(self.src, 'a') as f:                      # the game is updated
+                f.write('    "Hello again."\n')
+            self.assertIn('1 file of the game copied', self.setup_quietly())
+            with open(self.dst) as f:
+                self.assertIn('Hello again', f.read())
+            self.setup_quietly(exclude='^images$')              # a copy the game no longer wants goes
+            self.assertFalse(os.path.exists(os.path.join(self.run_dir, 'game', 'images')))
+
+    def test_a_lost_list_still_knows_its_hard_links(self):
+        self.setup_quietly()
+        os.remove(os.path.join(self.run_dir, runner.LINKS))
+        self.setup_quietly()
+        self.assertTrue(linked(self.dst, self.src))
 
 
 if __name__ == '__main__':
