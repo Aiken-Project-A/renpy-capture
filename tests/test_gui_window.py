@@ -7,6 +7,7 @@ through the window, with the real capture as its child process. RENPY_CAPTURE_GU
 window when the run is over; RENPY_CAPTURE_IT_REFERENCE (a capture made on Linux) is compared with it like the other
 end-to-end tests do."""
 import contextlib
+import gc
 import io
 import os
 import shutil
@@ -109,9 +110,14 @@ class WindowTest(unittest.TestCase):
         settle(self.root)
 
     def destroy(self):
+        if self.root is None:                                   # (once for each window the test opened)
+            return
         with contextlib.suppress(tk.TclError):
             self.app.bar.stop()                                 # (the bar's own timer would run into nothing)
             self.root.destroy()
+        self.app = self.ctl = self.root = None
+        gc.collect()                                            # here, in the main thread: Tk objects must not be
+                                                                # freed by a thread that the next test starts
 
     def choose(self, game=None):
         self.app.game_var.set(game or self.game)
@@ -121,6 +127,7 @@ class WindowTest(unittest.TestCase):
     def test_it_opens_and_says_what_to_do(self):
         a = self.app
         self.assertEqual(self.root.title(), S.TITLE)
+        self.assertEqual((a.icon.width(), a.icon.height()), (64, 64))             # its own icon, not Tk's feather
         self.assertEqual(said(a.game_words), S.GAME_EMPTY)
         self.assertIn('disabled', a.capture.state())
         self.assertEqual(said(a.status), '')                                   # nothing has run yet

@@ -65,9 +65,10 @@ class Words(tk.Text):
 
     def __init__(self, parent, lines=1, font=None, tag=None):
         look = ttk.Style(parent).lookup('TFrame', 'background') or parent.winfo_toplevel().cget('background')
+        font = font or tkfont.nametofont('TkDefaultFont')
         super().__init__(parent, width=10, height=1, wrap='word', relief='flat', borderwidth=0, highlightthickness=0,
-                         padx=0, pady=0, state='disabled', takefocus=False, cursor='xterm', background=look,
-                         font=font or tkfont.nametofont('TkDefaultFont'))
+                         padx=0, pady=0, state='disabled', takefocus=False, cursor='xterm', background=look, font=font)
+        self.measure = font.measure
         self.most, self.said, self.tag, self.fitting, self.again, self.later = lines, None, tag, False, False, None
         for name, colour in (('bad', BAD), ('quiet', QUIET), ('note', NOTE)):
             self.tag_configure(name, foreground=colour)
@@ -106,12 +107,12 @@ class Words(tk.Text):
         width = self.winfo_width()
         if width <= 20 or not self.said:
             return 1
-        font = tkfont.Font(font=self.cget('font'))
-        space, total = font.measure(' '), 0
+        measure = self.measure
+        space, total = measure(' '), 0
         for paragraph in self.said[0].split('\n'):
             lines, used = 1, 0
             for word in paragraph.split(' '):
-                length = font.measure(word)
+                length = measure(word)
                 if used and used + space + length > width:
                     lines, used = lines + 1, 0
                 used += (space if used else 0) + length
@@ -182,6 +183,12 @@ class App:
         self.root, self.ctl = root, controller
         self.told_of_bug = False
         root.title(S.TITLE)
+        try:                                                # its own icon in the title bar and the taskbar, not Tk's
+            from .icon import PNG64
+            self.icon = tk.PhotoImage(data=PNG64)           # (held: Tk drops a picture that nothing holds)
+            root.iconphoto(True, self.icon)
+        except tk.TclError:
+            pass
         self.style = ttk.Style(root)
         if sys.platform not in ('win32', 'darwin') and 'clam' in self.style.theme_names():
             self.style.theme_use('clam')                    # the plain theme of Tk on Linux is not a pleasure to look at
