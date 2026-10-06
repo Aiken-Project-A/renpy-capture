@@ -65,6 +65,33 @@ jobs:
           RENPY_CAPTURE_IT_VERSION: ${{ matrix.renpy-version }}
         run: python -m unittest tests.test_torture -v
 
+  window:
+    # The window on a real (virtual) screen: its tests, and The Question captured through it, with Cancel stopping the
+    # engine. Tk must be there: a Python without it would skip the tests and pass.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install Xvfb, Mesa and Tk
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri libegl1 libtk8.6
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/renpy-capture/sdk
+          key: ${{ runner.os }}-renpy-sdk-8.3.2
+      - run: pip install .
+      - name: Tk is there, and a window can be opened
+        run: xvfb-run -a python -c "import tkinter; tkinter.Tk().destroy(); print('Tk', tkinter.TkVersion)"
+      - name: The window, and The Question through it
+        env:
+          RENPY_CAPTURE_IT: '1'
+          RENPY_CAPTURE_IT_VERSION: '8.3.2'
+        run: xvfb-run -a -s "-screen 0 1280x1024x24" python -m unittest tests.test_gui_window -v
+
   windows-unit:
     runs-on: windows-latest
     steps:
@@ -131,6 +158,21 @@ jobs:
           RENPY_CAPTURE_IT: '1'
           RENPY_CAPTURE_IT_VERSION: ${{ matrix.renpy-version }}
         run: python -m unittest tests.test_torture -v
+      - name: Capture The Question through the window, compare it with Linux, and take the window's picture
+        env:
+          RENPY_CAPTURE_IT: '1'
+          RENPY_CAPTURE_IT_VERSION: ${{ matrix.renpy-version }}
+          RENPY_CAPTURE_IT_REFERENCE: ${{ runner.temp }}/reference
+          RENPY_CAPTURE_GUI_SHOT: ${{ runner.temp }}/window.png
+        run: python -m unittest tests.test_gui_window -v
+      - name: Keep the picture of the window
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: window-${{ matrix.renpy-version }}
+          path: ${{ runner.temp }}/window.png
+          if-no-files-found: ignore
+          retention-days: 14
 
   tutorial:
     # The Ren'Py Tutorial, the larger game of the SDK, captured as a user would (tests/test_tutorial.py): a few
