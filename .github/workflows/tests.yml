@@ -131,3 +131,29 @@ jobs:
           RENPY_CAPTURE_IT: '1'
           RENPY_CAPTURE_IT_VERSION: ${{ matrix.renpy-version }}
         run: python -m unittest tests.test_torture -v
+
+  tutorial:
+    # The Ren'Py Tutorial, the larger game of the SDK, captured as a user would (tests/test_tutorial.py): a few
+    # minutes under Xvfb, so on one Ren'Py version only.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install Xvfb and Mesa
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri libegl1
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/renpy-capture/sdk
+          key: ${{ runner.os }}-renpy-sdk-8.5.3
+      - run: pip install .
+      - name: Capture the Tutorial under Xvfb
+        env:
+          RENPY_CAPTURE_IT_TUTORIAL: '1'
+          RENPY_CAPTURE_IT_DISPLAY: xvfb
+          RENPY_CAPTURE_IT_VERSION: '8.5.3'
+        run: python -m unittest tests.test_tutorial -v
