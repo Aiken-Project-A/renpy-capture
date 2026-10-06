@@ -465,6 +465,11 @@ init python:
             mkey = (getattr(node, "filename", None), getattr(node, "linenumber", None))
             again = P.menus_seen.get(mkey, 0)
             P.menus_seen[mkey] = again + 1
+            if called is not None and again and P.menu_i >= len(plan):    # back at a hub with nothing planned: the
+                rec["menu"] = {"n": P.menu_i, "options": caps, "screen": called}   # job ends here, its other options
+                _rc_emit(rec)                                                     # are jobs of their own (explore)
+                _rc_emit({"ev": "stop", "job": P.job["id"], "why": "hub", "file": mkey[0], "line": mkey[1]})
+                raise renpy.game.EndReplay()
             if P.menu_i < len(plan):
                 k = plan[P.menu_i]
             elif again:                            # the same menu again (a quiz asks again after a wrong answer):
