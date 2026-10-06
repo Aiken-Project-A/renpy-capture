@@ -325,9 +325,17 @@ init python:
             try:
                 if not b.is_sensitive():
                     continue
-                cap = " ".join(u"{}".format(b._tts_all()).split())
             except Exception:
-                cap = ""
+                pass
+            cap = ""
+            for kw in ({"raw": False}, {}):         # (Ren'Py 8.5 asks whether the words are to be raw)
+                try:
+                    cap = " ".join(u"{}".format(b._tts_all(**kw)).split())
+                    break
+                except TypeError:
+                    continue
+                except Exception:
+                    break
             rv.append(_RcState(caption=cap or u"button {}".format(len(rv) + 1), action=b.action))
         return rv
 
