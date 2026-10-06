@@ -15,7 +15,7 @@ def machine_mode():
     """Machine mode over a standard output and error that are files in the code page of Windows, as a program that
     reads them (a window) sees them. Yields what each of them got, as bytes."""
     out, err = io.BytesIO(), io.BytesIO()
-    streams = [io.TextIOWrapper(b, encoding='cp1252', write_through=True) for b in (out, err)]
+    streams = [io.TextIOWrapper(b, encoding='cp1252', newline='\n', write_through=True) for b in (out, err)]
     try:
         with mock.patch.object(sys, 'stdout', streams[0]), mock.patch.object(sys, 'stderr', streams[1]):
             events.enable()
