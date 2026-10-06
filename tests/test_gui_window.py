@@ -12,6 +12,7 @@ import gc
 import io
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -541,8 +542,10 @@ class WindowEndToEnd(unittest.TestCase):
             patch = mock.patch.object(app.messagebox, name, getattr(self.boxes, name))
             patch.start()
             self.addCleanup(patch.stop)
-        name = 'The Question' if 'whole' in self.id() else 'cancelled'            # (the picture shows this one)
-        self.work = os.path.join(self.folders[1], name)
+        which = self.id().split('.')[-1]
+        name = 'The Question' if 'whole' in which else 'killed' if 'killed' in which else 'cancelled'
+        self.work = os.path.join(self.folders[1], name)             # one for each test: what a test leaves is not the
+                                                                    # next one's start (the picture shows the first)
         self.root = tk.Tk()
         self.addCleanup(self.root.destroy)
         self.ctl = Controller(Settings(os.path.join(self.tmp, 'gui.json')),
@@ -639,6 +642,21 @@ class WindowEndToEnd(unittest.TestCase):
         self.assertRegex(self.ctl.summary.headline, r'^Done: 128 lines in 3 branches, \d+ pictures\.$')
         lines = [r for r in read_jsonl(os.path.join(self.work, 'out', 'log.jsonl')) if r['ev'] == 'shot']
         self.assertEqual(len(lines), 128)                                       # nothing twice, nothing lost
+
+    @unittest.skipIf(os.name == 'nt', 'Windows: this is what Cancel does there, and the test above is it')
+    def test_a_capture_killed_outright_goes_on_with_nothing_twice(self):
+        self.app.capture.invoke()
+        self.wait(lambda: (self.ctl.tracker.numbers or {}).get('lines', 0) >= 5)        # in the middle of a job
+        os.killpg(self.ctl.run.proc.pid, signal.SIGKILL)                        # no chance to finish anything
+        self.wait(lambda: self.ctl.phase == 'finished', 120)
+        self.assertEqual(self.ctl.summary.kind, 'failed')
+        self.app.capture.invoke()                                               # and again: it goes on
+        self.wait(lambda: self.ctl.phase == 'finished')
+        self.assertRegex(self.ctl.summary.headline, r'^Done: 128 lines in 3 branches, \d+ pictures\.$')
+        recs = read_jsonl(os.path.join(self.work, 'out', 'log.jsonl'))
+        self.assertEqual(len([r for r in recs if r['ev'] == 'shot']), 128)      # what the dead capture had recorded
+        starts = [r['job'] for r in recs if r['ev'] == 'start']                 # of the job it was in is not there too
+        self.assertEqual(len(starts), len(set(starts)), starts)
 
 
 if __name__ == '__main__':
