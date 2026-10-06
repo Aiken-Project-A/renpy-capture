@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+### A window, and a Windows build that needs nothing installed
+- `renpy-capture gui` (or `renpy-capture-gui`, which opens no console on Windows) opens a window that does what `capture`
+  does, for people who never open a terminal: the folder of the game (a folder that is not a game is said so in plain
+  words), a work folder named after the game in Documents, the translation to capture (the folders of `game/tl`, the
+  original first), "show the text box", and one big Capture button. A game that does not tell its Ren'Py version is
+  offered the versions that can be downloaded instead of failing. Tkinter only: no new dependency.
+- While it runs the window says in words what the command line shows, every second: the engine being downloaded the
+  first time (with its size), the branches done, the lines captured, the branch under way. **Cancel** stops the capture
+  and everything it started (a Job Object of the window on Windows; SIGTERM, then SIGKILL, elsewhere). It ends with what
+  was captured, what to look at in plain words, and *Open the page*, *Open the folder* and *Open the log*; capturing
+  the same game into the same folder again goes on where the last run stopped. The capture runs as a program of its own,
+  so a crash of it does not take the window down; its text goes to `renpy-capture.log` in the work folder.
+- The last folders and choices are remembered for each game (`gui.json` in the config folder). The keyboard reaches
+  everything, the window resizes, and its text can be selected and copied. Its words are all in one file
+  (`renpy_capture/gui/strings.py`); what it decides is in `controller.py`, tested without a display.
+- **A zip for Windows** that needs no Python, pipx or console: `renpy-capture-<version>-windows-x64.zip`, built with
+  PyInstaller (one folder, not one file: it starts faster and antivirus programs flag it less) by the workflow `windows
+  build` on every pull request, tried on a clean windows-latest (The Question captured with `renpy-capture.exe` against
+  the Linux capture, the window opened and closed, a game with only compiled scripts, the window capturing through the
+  program beside it), and attached to a published release. `renpy-capture-gui.exe` is the window,
+  `renpy-capture.exe` the command (and the window, given no arguments). The build is not signed: the README says what
+  SmartScreen shows the first time and how to go on.
+
+### New
+- `--progress-json` (`capture`, `explore`, `run`, `prun`): the progress as one JSON object per line on the standard
+  output (the steps, the engine being downloaded and unpacked with sizes, the branches and lines every second, the
+  summary at the end, the reason when it stops), the text for a person on the standard error. It is how the window
+  reads a capture, and how a script can ([the guide](docs/guide.md#the-progress-a-program-can-read)).
+- A capture told to stop with SIGTERM ends the way it does on Ctrl+C: the engine and the virtual screen are stopped first.
+- `report` returns its warnings as data as well as printing them; `game_dir` can be told how many folders to look into.
+
+### Fixed
+- An engine that never wrote a line (it or the screen did not start) ended a capture with a traceback about a missing log;
+  it now ends with a sentence that points to what the engine and the screen said.
+
 ### Windows
 - renpy-capture runs on Windows 10 and 11 with Python 3.9 or newer (`pipx install renpy-capture`), proven on every
   pull request by the tests on windows-latest: the unit tests, the Torture Test, and The Question on Ren'Py 8.3.2 and

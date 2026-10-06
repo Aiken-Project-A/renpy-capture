@@ -58,6 +58,8 @@ anyone.
 
 ## Try it
 
+No terminal? [Use the window on Windows](#no-terminal-use-the-window-windows): a zip, nothing to install.
+
 ```sh
 pipx install renpy-capture
 renpy-capture capture ~/Games/SomeGame work/
@@ -81,6 +83,36 @@ xdg-open work/export-text-russian/index.html
 > Linux or Windows 10/11, with Python 3.9 or newer. On Linux, KWin or Xvfb for the hidden screen; on Windows the game
 > runs on a desktop of its own and nothing shows on yours (on Windows, open the page with `start` instead of
 > `xdg-open`). See [the guide](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/guide.md#on-windows).
+
+## No terminal? Use the window (Windows)
+
+Most translators never open a terminal, and they do not have to: renpy-capture has a window, and on Windows it comes
+as a zip that needs nothing installed (no Python, no pipx).
+
+1. Open **[the latest release](https://github.com/Aiken-Project-A/renpy-capture/releases/latest)** and download the
+   file called `renpy-capture-…-windows-x64.zip` under *Assets* (not *Source code*).
+2. Right-click the zip, **Extract All**, open the folder `renpy-capture` and double-click **`renpy-capture-gui.exe`**.
+3. Choose the folder of the game, and press **Capture**.
+
+<div align="center">
+<img src="https://raw.githubusercontent.com/Aiken-Project-A/renpy-capture/main/docs/images/window.png" width="70%" alt="The window of renpy-capture after a capture of The Question: the game folder, the work folder, the translation to capture, the Capture button, and under them what was captured and the buttons to open the page and the folder">
+</div>
+
+The window tells in plain words what it is doing (the first time it downloads the engine of the game's version: about
+150 MB, once), has a **Cancel** button that stops everything, and ends with what was captured and two buttons: **Open
+the page** (the book of the game, in your browser) and **Open the folder**. Capture the same game into the same work
+folder again and it goes on where it stopped. A game with a translation in `game/tl` offers it in a list, and **Show the
+text box** keeps the game's dialogue window in the pictures, to check how the translation fits.
+
+> [!NOTE]
+> The program is not signed (there is no certificate: it costs money every year), so the first time Windows
+> SmartScreen may show **"Windows protected your PC"**. Click **More info**, then **Run anyway**. You do this once; the
+> code is public and the zip is built from it on GitHub. An antivirus program may also look at it for a moment the first
+> time. Unpack the zip first: it does not run from inside the zip.
+
+With Python, `renpy-capture gui` opens the same window on Linux and Windows (Tk is needed: `sudo apt install python3-tk`
+on Debian and Ubuntu), and `pip install renpy-capture` puts a launcher on Windows that opens no console. How the window
+works, and how the zip is made, are in [the guide](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/guide.md#the-window).
 
 ## Why you can trust the pictures
 
