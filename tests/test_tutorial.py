@@ -2,7 +2,8 @@
 picks from a called screen, many screens, ATL and transforms, NVL mode, an imagemap whose hotspots jump, interactive
 examples and a pong minigame. It is captured the way a user would, with `capture` and the config a user can write
 from reading the script (TUTORIAL_CONFIG); the test checks that the hub and every menu are taken all the way, that no
-job stops on an error or hangs, and that `gaps` finds nothing left unreached.
+job stops on an error or hangs, that `gaps` finds nothing left unreached, and that a second run gives the same
+pictures.
 
 Opt-in and slow (minutes; it downloads the SDK once and needs a display backend): RENPY_CAPTURE_IT_TUTORIAL=1 python
 -m unittest tests.test_tutorial. RENPY_CAPTURE_IT_VERSION picks the SDK (default 8.3.2), RENPY_CAPTURE_IT_DISPLAY and
@@ -18,16 +19,18 @@ import shutil
 import tempfile
 import unittest
 
-from renpy_capture import analysis, sdk, workflow
+from renpy_capture import analysis, runner, sdk, workflow
 from renpy_capture.util import read_jsonl
 
 VERSION = os.environ.get('RENPY_CAPTURE_IT_VERSION', '8.3.2')
 DISPLAY = os.environ.get('RENPY_CAPTURE_IT_DISPLAY')
 GPU = os.environ.get('RENPY_CAPTURE_IT_GPU')
 
-# The starter config, plus what a user learns from the Tutorial's script.
+# The starter config, plus what a user learns from the Tutorial's script: its pong minigame says "I win!" when the
+# screen returns "eileen" (indepth_minigame.rpy), and "You won!" otherwise, which is what a capture gets on its own.
 TUTORIAL_CONFIG = {
-    'jobs': [{'id': 'start', 'label': 'start'}],
+    'jobs': [{'id': 'start', 'label': 'start'},
+             {'id': 'pong lost', 'label': 'demo_minigame', 'stub_screens': {'pong': 'eileen'}}],
     'ui': '.*',
     'settle': 0.3,
     'settle_max': 1.2,
@@ -67,16 +70,29 @@ class Tutorial(unittest.TestCase):
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
-    def test_no_errors_or_stalls(self):
+    def test_no_errors_stalls_or_warnings(self):
+        """Every job ends at the end of the game, of its own label, or back at the hub; `report` warns of nothing."""
         self.assertFalse([r for r in self.recs if r['ev'] == 'error'], self.said.getvalue()[-3000:])
-        self.assertFalse([r for r in self.recs if r['ev'] == 'stop'])
+        self.assertEqual({r['why'] for r in self.recs if r['ev'] == 'stop'}, {'hub'})
         self.assertIn('every menu option taken', self.said.getvalue())
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            analysis.report(self.paths['out'])
+        self.assertNotIn('warning', buf.getvalue())
+
+    def test_both_ends_of_pong(self):
+        said = collections.defaultdict(set)
+        for r in self.shots:
+            if r.get('what') in ('I win!', 'You won! Congratulations.'):
+                said[r['what']].add(r['job'])
+        self.assertIn('pong lost', said['I win!'])
+        self.assertTrue(said['You won! Congratulations.'] - {'pong lost'})
 
     def test_the_hub_is_a_menu_and_every_topic_is_taken(self):
         hub = [r['menu'] for r in self.shots if (r.get('menu') or {}).get('screen') == 'tutorials']
         self.assertTrue(hub)
         self.assertEqual({tuple(m['options']) for m in hub}, {TOPICS})
-        self.assertEqual({m['pick'] for m in hub}, set(range(len(TOPICS))))
+        self.assertEqual({m['pick'] for m in hub if 'pick' in m}, set(range(len(TOPICS))))
 
     def test_every_option_of_every_menu_is_taken(self):
         picks = collections.defaultdict(set)
@@ -97,6 +113,17 @@ class Tutorial(unittest.TestCase):
 
     def test_nvl_lines_are_captured(self):
         self.assertTrue([r for r in self.shots if r.get('who') == 'nvle'])
+
+    def test_second_run_is_identical(self):
+        """The same jobs again, on a fresh engine: the same pictures to the byte (a movie playing may be caught in
+        another frame)."""
+        again = os.path.join(self.tmp, 'again')
+        with contextlib.redirect_stdout(io.StringIO()):
+            runner.run(self.paths['run'], self.paths['config'], again, display=DISPLAY, gpu=GPU)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ok = analysis.compare(self.paths['out'], again)
+        self.assertTrue(ok, buf.getvalue())
 
     def test_nothing_left_unreached(self):
         with contextlib.redirect_stdout(io.StringIO()):
