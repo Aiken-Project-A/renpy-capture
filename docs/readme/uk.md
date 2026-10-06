@@ -60,6 +60,8 @@ renpy-capture запускає гру на Ren'Py у її власному ру�
 
 ## Спробуйте
 
+Без термінала? [Вікно для Windows](#без-термінала-вікно-для-windows): zip-архів, нічого не треба встановлювати.
+
 ```sh
 pipx install renpy-capture
 renpy-capture capture ~/Games/SomeGame work/
@@ -82,6 +84,25 @@ xdg-open work/export-text-russian/index.html
 
 > [!NOTE]
 > Linux або Windows 10/11, Python 3.9 або новіший. На Linux прихований екран дають KWin чи Xvfb; на Windows гра йде на окремому робочому столі, і на екрані нічого не з'являється (сторінка на Windows відкривається командою `start` замість `xdg-open`). Докладніше — у [посібнику](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/guide.md#on-windows).
+
+## Без термінала: вікно для Windows
+
+Більшість перекладачів ніколи не відкривають термінал — і не мусять: у renpy-capture є вікно, а для Windows воно постачається zip-архівом, якому нічого не треба встановлювати (ні Python, ні pipx).
+
+1. Відкрийте **[останній випуск](https://github.com/Aiken-Project-A/renpy-capture/releases/latest)** і завантажте файл `renpy-capture-…-windows-x64.zip` у розділі *Assets* (не *Source code*).
+2. Клацніть архів правою кнопкою, **Видобути все**, відкрийте папку `renpy-capture` і двічі клацніть **`renpy-capture-gui.exe`**.
+3. Виберіть папку гри й натисніть **Capture**.
+
+<div align="center">
+<img src="https://raw.githubusercontent.com/Aiken-Project-A/renpy-capture/main/docs/images/window.png" width="722" alt="Вікно renpy-capture після знімання The Question: папка гри, робоча папка, переклад для знімання, кнопка Capture, а під ними — що знято, і кнопки, що відкривають сторінку й папку">
+</div>
+
+Вікно простими словами каже, що робить (першого разу воно завантажує рушій потрібної версії гри: від 150 до 165 МБ, один раз), має кнопку **Cancel**, яка зупиняє все, а наприкінці показує, що знято, і дві кнопки: **Open the page** (книга гри в браузері) та **Open the folder**. Зніміть ту саму гру в ту саму робочу папку ще раз — і знімання продовжиться з місця, де зупинилося. Якщо в `game/tl` є переклад, вікно запропонує його в списку, а **Show the text box** залишає на картинках вікно діалогу гри — щоб перевірити, як у нього вміщується переклад. Саме вікно поки що англійською.
+
+> [!NOTE]
+> Програма не підписана (сертифіката немає: він коштує грошей щороку), тож першого разу Windows SmartScreen може показати **«Windows захистила ваш ПК»**. Натисніть **Докладніше**, потім **Усе одно запустити**. Це треба зробити один раз; код відкритий, і архів збирається з нього на GitHub. Антивірус теж може першого разу ненадовго до нього придивитися. Спершу розпакуйте архів: зсередини zip програма не запускається.
+
+З Python команда `renpy-capture gui` відкриває те саме вікно на Linux і Windows (потрібен Tk: `sudo apt install python3-tk` у Debian та Ubuntu), а `pip install renpy-capture` встановлює на Windows програму запуску вікна без консолі. Як влаштоване вікно і як збирається архів — у [посібнику](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/guide.md#the-window).
 
 ## Чому картинкам можна довіряти
 

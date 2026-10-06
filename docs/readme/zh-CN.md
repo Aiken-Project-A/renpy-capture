@@ -51,6 +51,8 @@ renpy-capture 在一块隐藏的屏幕上，用游戏自己的引擎运行 Ren'P
 
 ## 试一试
 
+不用终端？[在 Windows 上用窗口](#不用终端windows-上的窗口)：一个 zip 压缩包，无需安装任何东西。
+
 ```sh
 pipx install renpy-capture
 renpy-capture capture ~/Games/SomeGame work/
@@ -69,6 +71,25 @@ xdg-open work/export-text-russian/index.html
 
 > [!NOTE]
 > 支持 Linux 和 Windows 10/11，需要 Python 3.9 或更高版本。在 Linux 上由 KWin 或 Xvfb 提供隐藏屏幕；在 Windows 上游戏运行在单独的桌面上，屏幕上不会出现任何东西（在 Windows 上请用 `start` 代替 `xdg-open` 打开页面）。详见[指南](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/guide.md#on-windows)。
+
+## 不用终端：Windows 上的窗口
+
+大多数译者从不打开终端，也不必打开：renpy-capture 有一个窗口，在 Windows 上它是一个 zip 压缩包，无需安装任何东西（不需要 Python，也不需要 pipx）。
+
+1. 打开**[最新版本](https://github.com/Aiken-Project-A/renpy-capture/releases/latest)**，在 *Assets* 下（不是 *Source code*）下载名为 `renpy-capture-…-windows-x64.zip` 的文件。
+2. 右键单击压缩包，选择**全部解压缩**，打开 `renpy-capture` 文件夹，双击 **`renpy-capture-gui.exe`**。
+3. 选择游戏所在的文件夹，然后点击 **Capture**。
+
+<div align="center">
+<img src="https://raw.githubusercontent.com/Aiken-Project-A/renpy-capture/main/docs/images/window.png" width="722" alt="renpy-capture 窗口在截取 The Question 之后：游戏文件夹、工作文件夹、要截取的翻译、Capture 按钮，下方是截取结果以及打开页面和文件夹的按钮">
+</div>
+
+窗口会用简单的话告诉你它在做什么（第一次会下载该游戏版本的引擎：150 到 165 MB，只下载一次），有一个能停止一切的 **Cancel** 按钮，结束时显示截取的内容和两个按钮：**Open the page**（在浏览器中打开游戏之书）和 **Open the folder**。把同一款游戏再次截取到同一个工作文件夹，它会从上次停下的地方继续。如果 `game/tl` 中有翻译，窗口会在列表中列出；勾选 **Show the text box** 会在图片中保留游戏的对话框，便于检查译文是否放得下。窗口目前只有英文界面。
+
+> [!NOTE]
+> 程序没有签名（没有证书：证书每年都要花钱），所以第一次运行时 Windows SmartScreen 可能会显示 **“Windows 已保护你的电脑”**。点击**更多信息**，然后点击**仍要运行**。只需操作一次；代码是公开的，压缩包就是在 GitHub 上用这些代码构建的。第一次运行时杀毒软件也可能会检查它片刻。请先解压：程序无法在 zip 内运行。
+
+如果有 Python，`renpy-capture gui` 会在 Linux 和 Windows 上打开同样的窗口（需要 Tk：在 Debian 和 Ubuntu 上运行 `sudo apt install python3-tk`），而 `pip install renpy-capture` 会在 Windows 上安装一个不打开控制台的启动程序。窗口如何工作、压缩包如何制作，见[指南](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/guide.md#the-window)。
 
 ## 为什么这些画面可信
 

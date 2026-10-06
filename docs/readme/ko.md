@@ -51,6 +51,8 @@ renpy-capture는 Ren'Py 게임을 보이지 않는 화면에서 그 게임의 �
 
 ## 사용해 보기
 
+터미널이 없나요? [Windows용 창](#터미널-없이-windows용-창)을 쓰세요. zip 하나, 설치할 것은 없습니다.
+
 ```sh
 pipx install renpy-capture
 renpy-capture capture ~/Games/SomeGame work/
@@ -69,6 +71,25 @@ xdg-open work/export-text-russian/index.html
 
 > [!NOTE]
 > Linux 또는 Windows 10/11에서 동작하며 Python 3.9 이상이 필요합니다. Linux에서는 보이지 않는 화면에 KWin 또는 Xvfb를 쓰고, Windows에서는 게임이 별도의 데스크톱에서 실행되어 화면에는 아무것도 나타나지 않습니다(Windows에서는 `xdg-open` 대신 `start`로 페이지를 엽니다). 자세한 내용은 [가이드](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/guide.md#on-windows)를 참고하세요.
+
+## 터미널 없이: Windows용 창
+
+번역자 대부분은 터미널을 열지 않으며, 열 필요도 없습니다. renpy-capture에는 창이 있고, Windows에서는 아무것도 설치할 필요 없는 zip으로 제공됩니다(Python도 pipx도 필요 없습니다).
+
+1. **[최신 릴리스](https://github.com/Aiken-Project-A/renpy-capture/releases/latest)**를 열고 *Assets* 아래의 `renpy-capture-…-windows-x64.zip` 파일을 내려받습니다(*Source code*가 아닙니다).
+2. zip을 마우스 오른쪽 버튼으로 클릭해 **모두 압축 풀기**를 고르고, `renpy-capture` 폴더를 열어 **`renpy-capture-gui.exe`**를 두 번 클릭합니다.
+3. 게임 폴더를 고르고 **Capture**를 누릅니다.
+
+<div align="center">
+<img src="https://raw.githubusercontent.com/Aiken-Project-A/renpy-capture/main/docs/images/window.png" width="722" alt="The Question을 캡처한 뒤의 renpy-capture 창: 게임 폴더, 작업 폴더, 캡처할 번역, Capture 버튼, 그 아래에 캡처 결과와 페이지·폴더를 여는 버튼">
+</div>
+
+창은 지금 무엇을 하는지 쉬운 말로 알려 줍니다(처음에는 게임 버전에 맞는 엔진을 내려받습니다. 150~165 MB, 한 번만). 모든 작업을 멈추는 **Cancel** 버튼이 있고, 끝나면 캡처한 내용과 두 버튼, **Open the page**(브라우저에서 여는 게임의 책)와 **Open the folder**를 보여 줍니다. 같은 게임을 같은 작업 폴더에 다시 캡처하면 멈춘 곳에서 이어서 진행합니다. `game/tl`에 번역이 있는 게임은 목록에 그 번역을 보여 주고, **Show the text box**를 켜면 게임의 대화창이 그림에 남아 번역이 잘 들어가는지 확인할 수 있습니다. 창은 아직 영어로만 되어 있습니다.
+
+> [!NOTE]
+> 프로그램에 서명이 없어서(인증서가 없습니다. 해마다 비용이 듭니다) 처음 실행할 때 Windows SmartScreen이 **'Windows의 PC 보호'**를 표시할 수 있습니다. **추가 정보**를 누른 다음 **실행**을 누르세요. 한 번만 하면 됩니다. 코드는 공개되어 있고 zip은 GitHub에서 그 코드로 만들어집니다. 처음에는 백신 프로그램이 잠시 검사할 수도 있습니다. 먼저 zip의 압축을 푸세요. zip 안에서는 실행되지 않습니다.
+
+Python이 있다면 `renpy-capture gui`로 Linux와 Windows에서 같은 창을 열 수 있고(Tk가 필요합니다. Debian과 Ubuntu에서는 `sudo apt install python3-tk`), `pip install renpy-capture`는 Windows에 콘솔을 열지 않는 실행 프로그램을 설치합니다. 창이 어떻게 동작하는지, zip을 어떻게 만드는지는 [가이드](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/guide.md#the-window)에 있습니다.
 
 ## 이미지를 믿을 수 있는 이유
 

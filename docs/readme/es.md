@@ -60,6 +60,8 @@ navegador, buscar en él y enviárselo a quien quieras.
 
 ## Pruébalo
 
+¿Sin terminal? [La ventana para Windows](#sin-terminal-la-ventana-para-windows): un zip, sin instalar nada.
+
 ```sh
 pipx install renpy-capture
 renpy-capture capture ~/Games/SomeGame work/
@@ -82,6 +84,25 @@ xdg-open work/export-text-russian/index.html
 
 > [!NOTE]
 > Linux o Windows 10/11, con Python 3.9 o superior. En Linux, KWin o Xvfb para la pantalla oculta; en Windows el juego se ejecuta en un escritorio aparte y en la pantalla no aparece nada (en Windows, la página se abre con `start` en lugar de `xdg-open`). Más detalles en [la guía](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/guide.md#on-windows).
+
+## ¿Sin terminal? La ventana para Windows
+
+La mayoría de quienes traducen nunca abren una terminal, y no les hace falta: renpy-capture tiene una ventana, y en Windows llega como un zip que no necesita instalar nada (ni Python ni pipx).
+
+1. Abre **[la última versión](https://github.com/Aiken-Project-A/renpy-capture/releases/latest)** y descarga el archivo `renpy-capture-…-windows-x64.zip` en *Assets* (no *Source code*).
+2. Haz clic derecho en el zip, **Extraer todo**, abre la carpeta `renpy-capture` y haz doble clic en **`renpy-capture-gui.exe`**.
+3. Elige la carpeta del juego y pulsa **Capture**.
+
+<div align="center">
+<img src="https://raw.githubusercontent.com/Aiken-Project-A/renpy-capture/main/docs/images/window.png" width="722" alt="La ventana de renpy-capture tras capturar The Question: la carpeta del juego, la carpeta de trabajo, la traducción que se captura, el botón Capture y, debajo, lo capturado y los botones para abrir la página y la carpeta">
+</div>
+
+La ventana explica con palabras sencillas lo que hace (la primera vez descarga el motor de la versión del juego: de 150 a 165 MB, una sola vez), tiene un botón **Cancel** que lo detiene todo y termina con lo capturado y dos botones: **Open the page** (el libro del juego, en tu navegador) y **Open the folder**. Si capturas otra vez el mismo juego en la misma carpeta de trabajo, sigue donde se quedó. Un juego con una traducción en `game/tl` la ofrece en una lista, y **Show the text box** conserva en las imágenes la ventana de diálogo del juego, para comprobar cómo cabe la traducción. Por ahora la ventana está solo en inglés.
+
+> [!NOTE]
+> El programa no está firmado (no hay certificado: cuesta dinero cada año), así que la primera vez Windows SmartScreen puede mostrar **«Windows protegió su PC»**. Pulsa **Más información** y luego **Ejecutar de todas formas**. Solo se hace una vez; el código es público y el zip se compila a partir de él en GitHub. Un antivirus también puede revisarlo un momento la primera vez. Descomprime primero el zip: desde dentro del zip no se ejecuta.
+
+Con Python, `renpy-capture gui` abre la misma ventana en Linux y en Windows (hace falta Tk: `sudo apt install python3-tk` en Debian y Ubuntu), y `pip install renpy-capture` instala en Windows un lanzador que no abre consola. Cómo funciona la ventana y cómo se hace el zip está en [la guía](https://github.com/Aiken-Project-A/renpy-capture/blob/main/docs/guide.md#the-window).
 
 ## Por qué puedes confiar en las imágenes
 
